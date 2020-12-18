@@ -38,7 +38,7 @@
 #include "megalz.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0"
+#define VERSION						"1.0.1"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -151,6 +151,7 @@ typedef struct
 	bool tile_ldws;
 	char *tiled_file;
 	int tiled_blank;
+	bool block_repeat;
 	bool block_16bit;
 	bool map_none;
 	bool map_16bit;
@@ -183,6 +184,7 @@ static arguments_t m_args  =
 	.tile_ldws = false,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
+	.block_repeat = false,
 	.block_16bit = false,
 	.map_none = false,
 	.map_16bit = false,
@@ -626,6 +628,7 @@ static void print_usage(void)
 	printf("  -tiled-blank=X          Set the tile id of the blank tile.\n");
 	printf("  -block-size=XxY         Sets blocks size to X x Y for blocks of tiles.\n");
 	printf("  -block-size=n           Sets blocks size to n bytes for blocks of tiles.\n");
+	printf("  -block-repeat           Remove repeating blocks.\n");
 	printf("  -block-16bit            Get blocks as 16 bit index for < 256 blocks.\n");
 	printf("  -map-none               Don't save a map file (e.g. if you're just adding to tiles).\n");
 	printf("  -map-16bit              Save map as 16 bit output.\n");
@@ -739,6 +742,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				m_block_size = m_block_width * m_block_height;
 				
 				printf("Block Size = %d x %d\n", m_block_width, m_block_height);
+			}
+			else if (!strcmp(argv[i], "-block-repeat"))
+			{
+				m_args.block_repeat = true;
 			}
 			else if (!strcmp(argv[i], "-block-16bit"))
 			{
@@ -2157,26 +2164,29 @@ static int get_block(int tbx, int tby)
 	uint32_t block_index = m_block_count;
 	bool found = false;
 	
-	for (int i = 0; i < m_block_count; i++)
+	if (m_args.block_repeat)
 	{
-		uint32_t block_size = m_block_width * m_block_height;
-		
-		found = true;
-		
-		for (int j = 0; j < block_size; j++)
+		for (int i = 0; i < m_block_count; i++)
 		{
-			if (m_blocks[i * block_size + j] != m_blocks[m_block_count * block_size + j])
+			uint32_t block_size = m_block_width * m_block_height;
+			
+			found = true;
+			
+			for (int j = 0; j < block_size; j++)
 			{
-				found = false;
+				if (m_blocks[i * block_size + j] != m_blocks[m_block_count * block_size + j])
+				{
+					found = false;
+					break;
+				}
+			}
+			
+			if (found)
+			{
+				m_chunk_size = block_size;
+				block_index = i;
 				break;
 			}
-		}
-		
-		if (found)
-		{
-			m_chunk_size = block_size;
-			block_index = i;
-			break;
 		}
 	}
 	

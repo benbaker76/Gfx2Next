@@ -36,6 +36,7 @@ gfx2next [options] srcfile [dstfile]
 |-tiled-blank=X|Set the tile id of the blank tile.|
 |-block-size=XxY|Sets blocks size to X x Y for blocks of tiles.|
 |-block-size=n|Sets blocks size to n bytes for blocks of tiles.|
+|-block-repeat|Remove repeating blocks.|
 |-block-16bit|Get blocks as 16 bit index for &lt; 256 blocks.|
 |-map-none|Don't save a map file (e.g. if you're just adding to tiles).|
 |-map-16bit|Save map as 16 bit output.|
