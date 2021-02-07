@@ -82,7 +82,7 @@ gfx2next [options] srcfile [dstfile]
 https://github.com/headkaze/Gfx2Next
 
 ## Compiling
-gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx7.c src/megalz.c src/gfx2next.c
+gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/zx7.c src/megalz.c src/gfx2next.c
 
 ## Credits
 
