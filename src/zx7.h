@@ -12,10 +12,9 @@ typedef struct optimal_t {
     int len;
 } Optimal;
 
-Optimal *optimize(unsigned char *input_data, size_t input_size, long skip);
+Optimal *zx7_optimize(unsigned char *input_data, size_t input_size, long skip);
 
-unsigned char *compress(Optimal *optimal, unsigned char *input_data, size_t input_size, long skip, size_t *output_size, long *delta);
-void reverse(unsigned char *first, unsigned char *last);
+void zx7_reverse(unsigned char *first, unsigned char *last);
 unsigned char *zx7_compress(unsigned char *input_data, size_t input_size, bool backwards_mode, size_t *output_size);
 void zx7_decompress(unsigned char *in_data, unsigned char *out_data);
 

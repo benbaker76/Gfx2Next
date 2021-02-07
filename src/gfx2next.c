@@ -5,7 +5,7 @@
  *
  *    Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
  *    Antonio Villena - ZX7b
- *    Einar Saukas - ZX7
+ *    Einar Saukas - ZX0 / ZX7
  *    Jim Bagley - NextGrab / MapGrabber
  *    Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
  *    Stefan Bylun - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
@@ -34,11 +34,12 @@
 #include <ctype.h>
 #include <math.h>
 #include <assert.h>
+#include "zx0.h"
 #include "zx7.h"
 #include "megalz.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.1"
+#define VERSION						"1.0.2"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -71,7 +72,7 @@
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
 #define MAX(x,y)					((x) > (y) ? (x) : (y))
 
-#define IS_COMPRESSED				(m_args.zx7_mode > ZX7MODE_NONE || m_args.megalz_mode > MEGALZMODE_NONE)
+#define IS_COMPRESSED				(m_args.zx0_mode > ZX0MODE_NONE || m_args.zx7_mode > ZX7MODE_NONE || m_args.megalz_mode > MEGALZMODE_NONE)
 
 #define EXT_NXM						".nxm"
 #define EXT_NXM_COMPRESSED			".nzm"
@@ -89,6 +90,13 @@
 static void write_easter_egg();
 
 unsigned char m_gf[] = { 0xff,0x81,0x4c,0x00,0xf8,0x00,0x46,0x07,0x04,0x0f,0xc0,0x00,0x00,0x3f,0x5e,0x0f,0x1d,0xf8,0x45,0x01,0x29,0x0e,0xfc,0x1c,0x80,0x14,0x20,0xf0,0xb8,0x13,0xa5,0x41,0xe3,0xa2,0x04,0xc1,0x52,0x0f,0x87,0x22,0x63,0x7f,0x16,0x0f,0x1f,0x04,0xfe,0x92,0x05,0x49,0x09,0x51,0x4a,0x8f,0x12,0x5e,0xa2,0x29,0xc7,0x02,0x9d,0x57,0x06,0xf1,0x02,0x18,0x08,0xf8,0x8c,0x6e,0xa9,0x46,0xe7,0x60,0x38,0x9c,0xa1,0x13,0xcf,0x23,0x07,0x9f,0x90,0x07,0xdf,0xb4,0x27,0xe8,0x0f,0xe7,0xe9,0x57,0xe7,0x0f,0x77,0x4c,0xf3,0xae,0x10,0xba,0x0f,0xfb,0x54,0x06,0xfd,0x2e,0x0f,0xf9,0x8c,0x06,0x9f,0x18,0x26,0x81,0xb9,0x0f,0xf3,0x1c,0x0f,0xf7,0x81,0xc5,0x0f,0xf3,0x9c,0x9c,0x50,0x8f,0x33,0x83,0xd0,0xb3,0xfe,0x9e,0x0f,0x84,0x0c,0xe0,0x00,0x0f,0x58,0x0f,0x1f,0xf0,0x0f,0x46,0x83,0x68,0x0f,0x42,0xc1,0x95,0x0f,0xf1,0x92,0xd8,0xf8,0x2c,0xef,0x12,0xdf,0x9a,0xe3,0xc1,0x6a,0x0f,0x1b,0x14,0xc0,0x0f,0xbf,0x04,0x7f,0x94,0x0f,0x00,0x5f,0xd2,0xcd,0xd1,0xbd,0xbe,0x74,0x74,0x3a,0x30,0xca,0x0f,0x3c,0x03,0x08,0x25,0x7f,0x9f,0x0f,0x6f,0x60,0x0f,0x1c,0x0f,0x42,0x25,0xf1,0xdf,0x2f,0x76,0xe1,0x17,0x0f,0xfd,0x26,0xe0,0xcf,0x5f,0xab,0x4b,0x6e,0x23,0xde,0x6f,0x04,0x0f,0xfb,0xbf,0xa7,0x69,0x0f,0x3f,0xf7,0x19,0x0f,0xc6,0x5f,0x89,0x0f,0xfe,0x5f,0x77,0x93,0x0f,0x3f,0x1a,0xf7,0x67,0x64,0x0f,0x7f,0xa8,0x0f,0xbf,0xd1,0x0f,0xfc,0xdf,0x6f,0x1a,0x0f,0xfe,0x4a,0x4f,0x0f,0xfe,0x99,0x2f,0xfe,0x30,0xaf,0x4c,0xb0,0x9c,0x0f,0xa0,0xcf,0xf3,0x9e,0x0f,0x62,0x77,0xf7,0xfc,0x53,0x92,0x13,0xfd,0xdf,0x3f,0xa5,0x0f,0xfc,0x0f,0x4f,0x7f,0x0f,0x7a,0x51,0x04,0x3a,0x55,0x0f,0xf3,0x59,0x0f,0x29,0xf3,0xe6,0x30,0xbf,0xeb,0x0f,0x9e,0x49,0x13,0xf7,0xcc,0xff,0xac,0x7f,0x9e,0x79,0xf7,0xf9,0x88,0x0f,0x2d,0x7f,0xef,0xbe,0x53,0xf1,0x12,0x0f,0xfd,0x83,0xaa,0xce,0xe3,0x69,0x0f,0x89,0x27,0xef,0x8f,0x93,0x0f,0xf3,0x23,0x0f,0x1f,0x49,0x0f,0xe8,0x3f,0xa6,0x0f,0x87,0x69,0x8b,0xbe,0xbf,0x54,0xef,0xa8,0x07,0xcc,0xab,0x0f,0xe2,0x04,0xde,0xc4,0x0f,0xfd,0xcf,0xac,0xc3,0xde,0x9b,0x3f,0xd7,0x09,0x59,0xe3,0x9e,0x32,0x5f,0xfc,0xe8,0x0f,0xc0,0x09,0xbe,0x0f,0x66,0x0f,0xb6,0x1d,0x12,0x07,0x39,0x0f,0x80,0x00,0x64,0x4a,0x3f,0x03,0xce,0x0f,0x7e,0x0d,0xc8,0x3a,0x7f,0x01,0x97,0x9f,0x5a,0xed,0x06,0x00,0x5e,0x0f,0x18,0xac,0x63,0x82,0x27,0xc3,0x92,0x7f,0xf1,0x52,0x0f,0x80,0x0f,0x35,0xdf,0xf3,0xf4,0x9a,0x68,0x74,0x0f,0x03,0x74,0x0f,0xc9,0x50,0xdf,0xe6,0x0f,0x50,0x27,0xdf,0xfd,0x0f,0x94,0x81,0x04,0xef,0xf0,0x3f,0xd2,0x0f,0xa2,0x20,0xcf,0x6d,0x0f,0x71,0xf6,0x35,0x66,0xda,0x0f,0x30,0xc0,0x2a,0x0f,0x88,0x30,0xfe,0x00,0xbd,0x0f,0x30,0xf8,0x19,0x0f,0x83,0x92,0xe0,0x03,0x99,0x0f,0x00,0x7c,0x00,0x05,0x6a,0x0f,0xfc,0xe2,0x54,0xbe,0x0f,0x2e,0x00,0x61,0x97,0x92,0x0f,0xd1,0x44,0x7f,0x56,0x0f,0x00,0x1f,0x8e,0x0f,0x96,0x70,0xa7,0x49,0x00,0x23,0xf8,0x03,0x51,0x0f,0x01,0xb2,0x1f,0xa2,0x70,0xf8,0x08,0x0f,0x02,0x7f,0xe4,0x0f,0x3f,0x69,0x0f,0x04,0x9f,0x1a,0x0f,0x06,0x90,0xb1,0xd1,0xe8,0x32,0x0f,0x32,0x88,0xe0,0x25,0x0f,0xf9,0x1c,0x3f,0xfc,0x8e,0x0f,0x91,0x8f,0x51,0xf0,0x32,0x2f,0x32,0x81,0x90,0x26,0x1f,0x40,0x9f,0x47,0xa0,0x22,0x0f,0x60,0xad,0x2f,0x00,0x40,0x1a,0x0f,0xfe,0x43,0x80,0x08,0x0f,0x0e,0xa1,0xae,0x80,0x00,0x40 };
+
+typedef enum
+{
+	ZX0MODE_NONE,
+	ZX0MODE_STANDARD,
+	ZX0MODE_BACKWARDS
+} zx0_mode_t;
 
 typedef enum
 {
@@ -136,6 +144,15 @@ typedef enum
 	BANKSIZE_XY
 } bank_size_t;
 
+typedef enum
+{
+	MATCH_NONE = 0,
+	MATCH_XY = (1 << 0),
+	MATCH_ROTATE = (1 << 1),
+	MATCH_MIRROR_Y = (1 << 2),
+	MATCH_MIRROR_X = (1 << 3)
+} match_t;
+
 typedef struct
 {
 	char *in_filename;
@@ -147,6 +164,7 @@ typedef struct
 	bool sprites;
 	char *tiles_file;
 	bool tile_repeat;
+	bool tile_rotate;
 	bool tile_y;
 	bool tile_ldws;
 	char *tiled_file;
@@ -163,9 +181,14 @@ typedef struct
 	pal_mode_t pal_mode;
 	bool pal_min;
 	bool pal_std;
+	zx0_mode_t zx0_mode;
 	zx7_mode_t zx7_mode;
 	megalz_mode_t megalz_mode;
 	asm_mode_t asm_mode;
+	char *asm_file;
+	bool asm_start;
+	bool asm_end;
+	bool asm_sequence;
 	bool preview;
 } arguments_t;
 
@@ -180,6 +203,7 @@ static arguments_t m_args  =
 	.sprites = false,
 	.tiles_file = NULL,
 	.tile_repeat = false,
+	.tile_rotate = false,
 	.tile_y = false,
 	.tile_ldws = false,
 	.tiled_file = NULL,
@@ -196,9 +220,14 @@ static arguments_t m_args  =
 	.pal_mode = PALMODE_EXTERNAL,
 	.pal_min = false,
 	.pal_std = false,
+	.zx0_mode = ZX0MODE_NONE,
 	.zx7_mode = ZX7MODE_NONE,
 	.megalz_mode = MEGALZMODE_NONE,
 	.asm_mode = ASMMODE_NONE,
+	.asm_file = NULL,
+	.asm_start = false,
+	.asm_end = false,
+	.asm_sequence = false,
 	.preview = false,
 };
 
@@ -246,7 +275,6 @@ static uint32_t m_block_height = 1;
 static uint32_t m_block_size = 1 * 1;
 static uint32_t m_block_count = 0;
 
-static uint32_t m_palette_index = 0;
 static uint32_t m_chunk_size = 0;
 
 static char m_bitmap_filename[256] = { 0 };
@@ -622,6 +650,7 @@ static void print_usage(void)
 	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format.\n");
 	printf("  -tile-size=XxY          Sets tile size to X x Y.\n");
 	printf("  -tile-repeat            Remove repeating tiles.\n");
+	printf("  -tile-rotate            Remove repeating, rotating and mirrored tiles.\n");
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first).\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first).\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format.\n");
@@ -653,12 +682,18 @@ static void print_usage(void)
 	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors.\n");
 	printf("                          This option is ignored if the -colors-4bit option is given.\n");
 	printf("  -pal-none               No raw palette is created.\n");
+	printf("  -zx0                    Compress the image data using zx0.\n");
+	printf("  -zx0-back               Compress the image data using zx0 in reverse.\n");
 	printf("  -zx7                    Compress the image data using zx7.\n");
 	printf("  -zx7-back               Compress the image data using zx7 in reverse.\n");
 	printf("  -megalz                 Compress the image data using MegaLZ optimal.\n");
 	printf("  -megalz-greedy          Compress the image data using MegaLZ greedy.\n");
-	printf("  -z80asm                 Generate header and asm binary include files (in Z80ASM format).\n");
-	printf("  -sjasm                  Generate asm binary incbin file (SjASM format).\n");
+	printf("  -asm-z80asm             Generate header and asm binary include files (in Z80ASM format).\n");
+	printf("  -asm-sjasm              Generate asm binary incbin file (SjASM format).\n");
+	printf("  -asm-file=<name>        Append asm and header output to <name>.asm and <name>.h.\n");
+	printf("  -asm-start              Specifies the start of the asm and header data for appending.\n");
+	printf("  -asm-end                Specifies the end of the asm and header data for appending.\n");
+	printf("  -asm-sequence           Add sequence section for multi-bank spanning data.\n");
 	printf("  -preview                Generate png preview file(s).\n");
 }
 
@@ -699,6 +734,7 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				m_tile_height = 16;
 				m_tile_size = m_tile_width * m_tile_height;
 				m_args.tile_repeat = false;
+				m_args.tile_rotate = false;
 				m_args.sprites = true;
 			}
 			else if (!strncmp(argv[i], "-tiles-file=", 12))
@@ -716,6 +752,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-repeat"))
 			{
 				m_args.tile_repeat = true;
+			}
+			else if (!strcmp(argv[i], "-tile-rotate"))
+			{
+				m_args.tile_rotate = true;
 			}
 			else if (!strcmp(argv[i], "-tile-y"))
 			{
@@ -855,6 +895,14 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.pal_mode = PALMODE_NONE;
 			}
+			else if (!strcmp(argv[i], "-zx0"))
+			{
+				m_args.zx0_mode = ZX0MODE_STANDARD;
+			}
+			else if (!strcmp(argv[i], "-zx0-back"))
+			{
+				m_args.zx0_mode = ZX0MODE_BACKWARDS;
+			}
 			else if (!strcmp(argv[i], "-zx7"))
 			{
 				m_args.zx7_mode = ZX7MODE_STANDARD;
@@ -871,13 +919,29 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.megalz_mode = MEGALZMODE_GREEDY;
 			}
-			else if (!strcmp(argv[i], "-z80asm"))
+			else if (!strcmp(argv[i], "-asm-z80asm") || !strcmp(argv[i], "-z80asm"))
 			{
 				m_args.asm_mode = ASMMODE_Z80ASM;
 			}
-			else if (!strcmp(argv[i], "-sjasm"))
+			else if (!strcmp(argv[i], "-asm-sjasm") || !strcmp(argv[i], "-sjasm"))
 			{
 				m_args.asm_mode = ASMMODE_SJASM;
+			}
+			else if (!strncmp(argv[i], "-asm-file=", 10))
+			{
+				m_args.asm_file = &argv[i][10];
+			}
+			else if (!strcmp(argv[i], "-asm-start"))
+			{
+				m_args.asm_start = true;
+			}
+			else if (!strcmp(argv[i], "-asm-end"))
+			{
+				m_args.asm_end = true;
+			}
+			else if (!strcmp(argv[i], "-asm-sequence"))
+			{
+				m_args.asm_sequence = true;
 			}
 			else if (!strcmp(argv[i], "-preview"))
 			{
@@ -1532,10 +1596,10 @@ static void write_header_file(char *p_filename, bool type_16bit)
 	fprintf(m_header_file, "extern uint8_t *%s_end;\n", p_filename);
 }
 
-static void write_header_header()
+static void write_header_header(char *p_filename)
 {
 	char header_filename[256] = { 0 };
-	create_filename(header_filename, m_args.out_filename, "_H");
+	create_filename(header_filename, p_filename, "_H");
 	
 	to_upper(header_filename);
 	alphanumeric_to_underscore(header_filename);
@@ -1579,7 +1643,9 @@ static void write_file(FILE *p_file, char *p_filename, uint8_t *p_buffer, uint32
 		size_t compressed_size = 0;
 		uint8_t *compressed_buffer = NULL;
 		
-		if (m_args.zx7_mode > ZX7MODE_NONE)
+		if (m_args.zx0_mode > ZX0MODE_NONE)
+			compressed_buffer = zx0_compress(p_buffer, buffer_size, m_args.zx0_mode == ZX0MODE_BACKWARDS, &compressed_size);
+		else if (m_args.zx7_mode > ZX7MODE_NONE)
 			compressed_buffer = zx7_compress(p_buffer, buffer_size, m_args.zx7_mode == ZX7MODE_BACKWARDS, &compressed_size);
 		else
 			compressed_buffer = megalz_compress(p_buffer, buffer_size, m_args.megalz_mode, &compressed_size);
@@ -1796,7 +1862,7 @@ static void write_next_bitmap()
 	
 	if (m_args.asm_mode > ASMMODE_NONE)
 	{
-		if (m_bank_count > 0)
+		if (m_args.asm_sequence && m_bank_count > 0)
 		{
 			write_asm_sequence();
 			
@@ -1887,7 +1953,7 @@ static void write_tiles_sprites()
 	
 	if (m_args.asm_mode > ASMMODE_NONE)
 	{
-		if (m_bank_count > 0)
+		if (m_args.asm_sequence && m_bank_count > 0)
 		{
 			write_asm_sequence();
 			
@@ -1987,10 +2053,97 @@ static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile
 	fclose(p_file);
 }
 
-static int get_tile(int tx, int ty)
+static match_t check_tile(int i)
 {
-	m_palette_index = 0;
+	match_t match = MATCH_XY;
 	
+	for (int j = 0; j < m_tile_size; j++)
+	{
+		int ti = i * m_tile_size + j;
+		int index = m_tile_count * m_tile_size + j;
+		
+		if (m_args.colors_4bit)
+		{
+			ti >>= 1;
+			index >>= 1;
+		}
+		
+		if (m_tiles[ti] != m_tiles[index])
+		{
+			match &= ~MATCH_XY;
+			break;
+		}
+	}
+	
+	return match;
+}
+
+static match_t check_tile_rotate(int i)
+{
+	match_t match = MATCH_XY | MATCH_ROTATE | MATCH_MIRROR_Y | MATCH_MIRROR_X;
+	int tile_offset = i * m_tile_size;
+	
+	for (int y = 0; y < m_tile_height; y++)
+	{
+		for (int x = 0; x < m_tile_width; x++)
+		{
+			int x_r = m_tile_width - x - 1;
+			int y_r = m_tile_height - y - 1;
+			int offset = y * m_tile_width + x;
+			int offset_x_r = y * m_tile_width + x_r;
+			int offset_y_r = y_r * m_tile_width + x;
+			int offset_xy_r = y_r * m_tile_width + x_r;
+			int ti = tile_offset + offset;
+			int ti_x_r = tile_offset + offset_x_r;
+			int ti_y_r = tile_offset + offset_y_r;
+			int ti_xy_r = tile_offset + offset_xy_r;
+			int index = m_tile_count * m_tile_size + offset;
+			uint8_t px, px_x_r, px_y_r, px_xy_r, px_other;
+			
+			if (m_args.colors_4bit)
+			{
+				px = (x & 1 ? m_tiles[ti >> 1] & 0xf : m_tiles[ti >> 1] >> 4);
+				px_x_r = (x_r & 1 ? m_tiles[ti_x_r >> 1] & 0xf : m_tiles[ti_x_r >> 1] >> 4);
+				px_y_r = (x & 1 ? m_tiles[ti_y_r >> 1] & 0xf : m_tiles[ti_y_r >> 1] >> 4);
+				px_xy_r = (x_r & 1 ? m_tiles[ti_xy_r >> 1] & 0xf : m_tiles[ti_xy_r >> 1] >> 4);
+				px_other = (x & 1 ? m_tiles[index >> 1] & 0xf : m_tiles[index >> 1] >> 4);
+			}
+			else
+			{
+				px = m_tiles[ti];
+				px_x_r = m_tiles[ti_x_r];
+				px_y_r = m_tiles[ti_y_r];
+				px_xy_r = m_tiles[ti_xy_r];
+				px_other = m_tiles[index];
+			}
+			
+			if (px != px_other)
+			{
+				match &= ~MATCH_XY;
+			}
+			
+			if (px_xy_r != px_other)
+			{
+				match &= ~MATCH_ROTATE;
+			}
+			
+			if (px_y_r != px_other)
+			{
+				match &= ~MATCH_MIRROR_Y;
+			}
+			
+			if (px_x_r != px_other)
+			{
+				match &= ~MATCH_MIRROR_X;
+			}
+		}
+	}
+	
+	return match;
+}
+
+static int get_tile(int tx, int ty, uint8_t *attributes)
+{
 	if (m_args.debug)
 	{
 		printf("Tile Size = %d x %d\n", m_tile_width, m_tile_height);
@@ -2035,7 +2188,7 @@ static int get_tile(int tx, int ty)
 					
 					if (m_chunk_size >> 4)
 					{
-						m_palette_index = pix >> 4;
+						*attributes = (pix & 0xf0);
 					}
 				}
 				else
@@ -2080,9 +2233,9 @@ static int get_tile(int tx, int ty)
 						m_tiles[ti >> 1] = (pix << 4) & 0xf0;
 					}
 					
-					if ((m_chunk_size >> 4) != 0)
+					if (m_chunk_size >> 4)
 					{
-						m_palette_index = (pix >> 4) & 0xf;
+						*attributes = (pix & 0xf0);
 					}
 				}
 				else
@@ -2097,42 +2250,29 @@ static int get_tile(int tx, int ty)
 		printf("\n");
 
 	uint32_t tile_index = m_tile_count;
-	bool found = false;
+	match_t match = MATCH_NONE;
 	
-	if (m_args.tile_repeat)
+	if (m_args.tile_repeat || m_args.tile_rotate)
 	{
 		for (int i = 0; i < m_tile_count; i++)
 		{
-			found = true;
+			match = (m_args.tile_rotate ? check_tile_rotate(i) : check_tile(i));
 			
-			for (int j = 0; j < m_tile_size; j++)
-			{
-				int ti = i * m_tile_size + j;
-				int index = m_tile_count * m_tile_size + j;
-				
-				if (m_args.colors_4bit)
-				{
-					ti >>= 1;
-					index >>= 1;
-				}
-				
-				if (m_tiles[ti] != m_tiles[index])
-				{
-					found = false;
-					break;
-				}
-			}
-			
-			if (found)
+			if (match != MATCH_NONE)
 			{
 				m_chunk_size = m_tile_size;
 				tile_index = i;
+				
+				if (m_args.tile_rotate)
+				{
+					*attributes |= (match & 0xe);
+				}
 				break;
 			}
 		}
 	}
 	
-	if (!found)
+	if (match == MATCH_NONE)
 	{
 		m_tile_count++;
 	}
@@ -2150,14 +2290,16 @@ static int get_block(int tbx, int tby)
 	
 	if (m_block_width == 1 && m_block_height == 1)
 	{
-		return get_tile(tbx, tby);
+		uint8_t attributes = 0;
+		return get_tile(tbx, tby, &attributes);
 	}
 	
 	for (int y = 0; y < m_block_height; y++)
 	{
 		for (int x = 0; x < m_block_width; x++)
 		{
-			m_blocks[(m_block_count * m_block_width * m_block_height) + (y * m_block_width) + x] = get_tile(tbx + (x * m_tile_width), tby + (y * m_tile_height));
+			uint8_t attributes = 0;
+			m_blocks[(m_block_count * m_block_width * m_block_height) + (y * m_block_width) + x] = get_tile(tbx + (x * m_tile_width), tby + (y * m_tile_height), &attributes);
 		}
 	}
 	
@@ -2268,11 +2410,12 @@ static void process_tiles()
 				{
 					if (m_block_width == 1 && m_block_height == 1)
 					{
-						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height);
+						uint8_t attributes = 0;
+						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						
 						if (m_args.colors_4bit)
 						{
-							m_map[x * (m_image_height / m_tile_height) + y] = (ti & 0x3fff) + (m_palette_index << 12);
+							m_map[x * (m_image_height / m_tile_height) + y] = (ti & 0x3fff) | (attributes << 8);
 						}
 						else
 						{
@@ -2295,11 +2438,12 @@ static void process_tiles()
 				{
 					if (m_block_width == 1 && m_block_height == 1)
 					{
-						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height);
+						uint8_t attributes = 0;
+						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						
 						if (m_args.colors_4bit)
 						{
-							m_map[y * (m_image_width / m_tile_width) + x] = (ti & 0x3fff) + (m_palette_index << 12);
+							m_map[y * (m_image_width / m_tile_width) + x] = (ti & 0x3fff) | (attributes << 8);
 						}
 						else
 						{
@@ -2476,31 +2620,37 @@ int main(int argc, char *argv[])
 	{
 		char asm_filename[256] = { 0 };
 		
-		create_filename(asm_filename, m_args.in_filename, ".asm");
+		create_filename(asm_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".asm");
 		
-		m_asm_file = fopen(asm_filename, "w");
+		m_asm_file = fopen(asm_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
 		
 		if (asm_filename == NULL)
 		{
 			exit_with_msg("Can't create asm file %s.\n", asm_filename);
 		}
 		
-		write_asm_header();
+		if (m_args.asm_file == NULL || m_args.asm_start)
+		{
+			write_asm_header();
+		}
 		
 		if (m_args.asm_mode == ASMMODE_Z80ASM)
 		{
 			char header_filename[256] = { 0 };
 			
-			create_filename(header_filename, m_args.in_filename, ".h");
+			create_filename(header_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".h");
 			
-			m_header_file = fopen(header_filename, "w");
+			m_header_file = fopen(header_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
 			
 			if (header_filename == NULL)
 			{
 				exit_with_msg("Can't create header file %s.\n", header_filename);
 			}
 
-			write_header_header();
+			if (m_args.asm_file == NULL || m_args.asm_start)
+			{
+				write_header_header(m_args.asm_file != NULL ? m_args.asm_file : m_args.out_filename);
+			}
 		}
 	}
 	
@@ -2544,7 +2694,10 @@ int main(int argc, char *argv[])
 		
 		if (m_args.asm_mode == ASMMODE_Z80ASM)
 		{
-			write_header_footer();
+			if (m_args.asm_file == NULL || m_args.asm_end)
+			{
+				write_header_footer();
+			}
 		}
 		
 		exit(EXIT_SUCCESS);
@@ -2593,7 +2746,10 @@ int main(int argc, char *argv[])
 	
 	if (m_args.asm_mode == ASMMODE_Z80ASM)
 	{
-		write_header_footer();
+		if (m_args.asm_file == NULL || m_args.asm_end)
+		{
+			write_header_footer();
+		}
 	}
 	
 	return 0;

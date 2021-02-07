@@ -30,6 +30,7 @@ gfx2next [options] srcfile [dstfile]
 |-tiles-file=|Load tiles from file in .nxt format.|
 |-tile-size=XxY|Sets tile size to X x Y.|
 |-tile-repeat|Remove repeating tiles.|
+|-tile-rotate|Remove repeating, rotating and mirrored tiles.|
 |-tile-y|Get tile in Y order first. (Default is X order first).|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first).|
 |-tiled-file=|Load map from file in .tmx format.|
@@ -57,17 +58,23 @@ gfx2next [options] srcfile [dstfile]
 |-pal-min|If specified, minimize the palette by removing any duplicated colors, sort it in ascending order, and clear any unused palette entries at the end. This option is ignored if the -pal-std option is given.|
 |-pal-std|If specified, convert to the Spectrum Next standard palette colors. This option is ignored if the -colors-4bit option is given.|
 |-pal-none|No raw palette is created.|
+|-zx0|Compress the image data using zx0.|
+|-zx0-back|Compress the image data using zx0 in reverse.|
 |-zx7|Compress the image data using zx7.|
 |-zx7-back|Compress the image data using zx7 in reverse.|
 |-megalz|Compress the image data using MegaLZ optimal.|
 |-megalz-greedy|Compress the image data using MegaLZ greedy.|
-|-z80asm|Generate header and asm binary include files (in Z80ASM format).|
-|-sjasm|Generate asm binary incbin file (SjASM format).|
+|-asm-z80asm|Generate header and asm binary include files (in Z80ASM format).|
+|-asm-sjasm|Generate asm binary incbin file (SjASM format).|
+|-asm-file=<name>|Append asm and header output to <name>.asm and <name>.h.|
+|-asm-start|Specifies the start of the asm and header data for appending.|
+|-asm-end|Specifies the end of the asm and header data for appending.|
+|-asm-sequence|Add sequence section for multi-bank spanning data.|
 |-preview|Generate png preview file(s).|
 
 ## Examples
-* gfx2next.exe -tile-repeat -map-16bit -bank-16k -z80asm -bank-sections=rodata_user,rodata_user,BANK_52,BANK_53,rodata_user -preview tiles.png
-* gfx2next.exe -tile-repeat -map-16bit -colors-4bit -z80asm -bank-sections=rodata_user,BANK_17,BANK_17 tiles.png
+* gfx2next.exe -tile-repeat -map-16bit -bank-16k -asm-z80asm -bank-sections=rodata_user,rodata_user,BANK_52,BANK_53,rodata_user -preview tiles.png
+* gfx2next.exe -tile-repeat -map-16bit -colors-4bit -asm-z80asm -bank-sections=rodata_user,BANK_17,BANK_17 tiles.png
 * gfx2next.exe -sprites -colors-4bit -pal-min -pal-ext -preview sprites.png
 * gfx2next.exe -bitmap -pal-std -preview titlescreen.png
 
@@ -81,7 +88,7 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx7.c src/megalz.c src/gfx2next.
 
 * Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
 * Antonio Villena - ZX7b
-* Einar Saukas - ZX7
+* Einar Saukas - ZX0 / ZX7
 * Jim Bagley - NextGrab / MapGrabber
 * Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
 * Stefan Bylun - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
