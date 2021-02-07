@@ -16,7 +16,7 @@ Converts an uncompressed 8-bit BMP or PNG file to the Sinclair ZX Spectrum Next 
 
 ## Usage
 
-gfx2next [options] srcfile [dstfile]
+gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 
 ## Options
 
