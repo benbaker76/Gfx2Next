@@ -27,13 +27,13 @@ gfx2next [options] srcfile [dstfile]
 |-bitmap|Sets output to Next bitmap mode (.nxi).|
 |-bitmap-y|Get bitmap in Y order first. (Default is X order first).|
 |-sprites|Sets output to Next sprite mode (.spr).|
-|-tiles-file=|Load tiles from file in .nxt format.|
+|-tiles-file=<filename>|Load tiles from file in .nxt format.|
 |-tile-size=XxY|Sets tile size to X x Y.|
 |-tile-repeat|Remove repeating tiles.|
 |-tile-rotate|Remove repeating, rotating and mirrored tiles.|
 |-tile-y|Get tile in Y order first. (Default is X order first).|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first).|
-|-tiled-file=|Load map from file in .tmx format.|
+|-tiled-file=<filename>|Load map from file in .tmx format.|
 |-tiled-blank=X|Set the tile id of the blank tile.|
 |-block-size=XxY|Sets blocks size to X x Y for blocks of tiles.|
 |-block-size=n|Sets blocks size to n bytes for blocks of tiles.|
@@ -52,7 +52,7 @@ gfx2next [options] srcfile [dstfile]
 |-color-ceil|Round up the color values to the nearest integer.|
 |-color-round|Round the color values to the nearest integer.|
 |-colors-4bit|Use 4 bits per pixel (16 colors). Default is 8 bits per pixel (256 colors). Get sprites or tiles as 16 colors, top 4 bits of 16 bit map is palette index.|
-|-pal-file=|Load palette from file in .nxp format.|
+|-pal-file=<filename>|Load palette from file in .nxp format.|
 |-pal-embed|The raw palette is prepended to the raw image file.|
 |-pal-ext|The raw palette is written to an external file (.nxp). This is the default.|
 |-pal-min|If specified, minimize the palette by removing any duplicated colors, sort it in ascending order, and clear any unused palette entries at the end. This option is ignored if the -pal-std option is given.|
