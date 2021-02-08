@@ -66,7 +66,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-megalz-greedy|Compress the image data using MegaLZ greedy.|
 |-asm-z80asm|Generate header and asm binary include files (in Z80ASM format).|
 |-asm-sjasm|Generate asm binary incbin file (SjASM format).|
-|-asm-file=&lt;name&gt;|Append asm and header output to <name>.asm and <name>.h.|
+|-asm-file=&lt;name&gt;|Append asm and header output to &gt;name&lt;.asm and &gt;name&lt;.h.|
 |-asm-start|Specifies the start of the asm and header data for appending.|
 |-asm-end|Specifies the end of the asm and header data for appending.|
 |-asm-sequence|Add sequence section for multi-bank spanning data.|
