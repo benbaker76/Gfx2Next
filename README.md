@@ -91,7 +91,7 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/zx7.c src/megalz.c src
 * Einar Saukas - ZX0 / ZX7
 * Jim Bagley - NextGrab / MapGrabber
 * Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
-* Stefan Bylun - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
+* Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
 * fyrex^mhm - MegaLZ
 * lvd^mhm - MegaLZ
 * Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
