@@ -12,6 +12,7 @@ Converts an uncompressed 8-bit BMP or PNG file to the Sinclair ZX Spectrum Next 
 * .nxp - Palette
 * .nxt - Tiles
 * .spr - Sprites
+* .scr - Screens
 * .tmx - [Tiled](https://www.mapeditor.org/)
 
 ## Usage
@@ -24,6 +25,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |---|---|
 |-debug|Output additional debug information.|
 |-font|Sets output to Next font format (.spr).|
+|-screen|Sets output to Spectrum screen format (.scr).|
 |-bitmap|Sets output to Next bitmap mode (.nxi).|
 |-bitmap-y|Get bitmap in Y order first. (Default is X order first).|
 |-sprites|Sets output to Next sprite mode (.spr).|
@@ -86,15 +88,16 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/zx7.c src/megalz.c src
 
 ## Credits
 
-* Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
 * Antonio Villena - ZX7b
+* Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
 * Einar Saukas - ZX0 / ZX7
 * Jim Bagley - NextGrab / MapGrabber
+* Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
+* Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
 * Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
 * Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
 * fyrex^mhm - MegaLZ
 * lvd^mhm - MegaLZ
-* Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
 
 ## Download
 [Gfx2Next](https://www.rustypixels.uk/?download=1001)
