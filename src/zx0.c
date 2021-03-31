@@ -28,29 +28,12 @@
 
 #include "zx0.h"
 
-#define MAX_OFFSET_ZX0    32640
-#define MAX_OFFSET_ZX7     2176
-
-#define MAX_SCALE 50
-
-#define minimum(a,b) (a < b ? a : b)
-
-#define QTY_BLOCKS 10000
-
-#define BUFFER_SIZE 65536  /* must be > MAX_OFFSET */
-#define INITIAL_OFFSET 1
-
-FILE *ifp;
-FILE *ofp;
-char *input_name;
-char *output_name;
 unsigned char *input_data;
 unsigned char *output_data;
 size_t input_index;
 size_t output_index;
 size_t input_size;
 size_t output_size;
-size_t partial_counter;
 int bit_mask;
 int bit_value;
 int backtrack;
@@ -64,7 +47,7 @@ int dead_array_size = 0;
 int bit_index;
 int diff;
 
-BLOCK *zx0_allocate(int bits, int index, int offset, int length, BLOCK *chain) {
+BLOCK *allocate(int bits, int index, int offset, int length, BLOCK *chain) {
     BLOCK *ptr;
 
     if (ghost_root) {
@@ -98,7 +81,7 @@ BLOCK *zx0_allocate(int bits, int index, int offset, int length, BLOCK *chain) {
     return ptr;
 }
 
-void zx0_assign(BLOCK **ptr, BLOCK *chain) {
+void assign(BLOCK **ptr, BLOCK *chain) {
     chain->references++;
     if (*ptr) {
         if (!--(*ptr)->references) {
@@ -109,11 +92,11 @@ void zx0_assign(BLOCK **ptr, BLOCK *chain) {
     *ptr = chain;
 }
 
-int zx0_offset_ceiling(int index, int offset_limit) {
+int offset_ceiling(int index, int offset_limit) {
     return index > offset_limit ? offset_limit : index < INITIAL_OFFSET ? INITIAL_OFFSET : index;
 }
 
-int zx0_elias_gamma_bits(int value) {
+int elias_gamma_bits(int value) {
     int bits = 1;
     while (value > 1) {
         bits += 2;
@@ -122,7 +105,7 @@ int zx0_elias_gamma_bits(int value) {
     return bits;
 }
 
-BLOCK* zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int offset_limit) {
+BLOCK* optimize(unsigned char *input_data, size_t input_size, int skip, int offset_limit) {
     BLOCK **last_literal;
     BLOCK **last_match;
     BLOCK **optimal;
@@ -135,7 +118,7 @@ BLOCK* zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int 
     int length;
     int bits2;
     int dots = 2;
-    int max_offset = zx0_offset_ceiling(input_size-1, offset_limit);
+    int max_offset = offset_ceiling(input_size-1, offset_limit);
 
     /* allocate all main data structures at once */
     last_literal = (BLOCK **)calloc(max_offset+1, sizeof(BLOCK *));
@@ -150,31 +133,31 @@ BLOCK* zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int 
     best_length[2] = 2;
 
     /* start with fake block */
-    zx0_assign(&(last_match[INITIAL_OFFSET]), zx0_allocate(-1, skip-1, INITIAL_OFFSET, 0, NULL));
+    assign(&(last_match[INITIAL_OFFSET]), allocate(-1, skip-1, INITIAL_OFFSET, 0, NULL));
 
     printf("[");
 
     /* process remaining bytes */
     for (index = skip; index < input_size; index++) {
         best_length_size = 2;
-        max_offset = zx0_offset_ceiling(index, offset_limit);
+        max_offset = offset_ceiling(index, offset_limit);
         for (offset = 1; offset <= max_offset; offset++) {
             if (index != skip && index >= offset && input_data[index] == input_data[index-offset]) {
                 /* copy from last offset */
                 if (last_literal[offset]) {
                     length = index-last_literal[offset]->index;
-                    bits = last_literal[offset]->bits + 1 + zx0_elias_gamma_bits(length);
-                    zx0_assign(&(last_match[offset]), zx0_allocate(bits, index, offset, length, last_literal[offset]));
+                    bits = last_literal[offset]->bits + 1 + elias_gamma_bits(length);
+                    assign(&(last_match[offset]), allocate(bits, index, offset, length, last_literal[offset]));
                     if (!optimal[index] || optimal[index]->bits > bits)
-                        zx0_assign(&(optimal[index]), last_match[offset]);
+                        assign(&(optimal[index]), last_match[offset]);
                 }
                 /* copy from new offset */
                 if (++match_length[offset] > 1) {
                     if (best_length_size < match_length[offset]) {
-                        bits = optimal[index-best_length[best_length_size]]->bits + zx0_elias_gamma_bits(best_length[best_length_size]-1);
+                        bits = optimal[index-best_length[best_length_size]]->bits + elias_gamma_bits(best_length[best_length_size]-1);
                         do {
                             best_length_size++;
-                            bits2 = optimal[index-best_length_size]->bits + zx0_elias_gamma_bits(best_length_size-1);
+                            bits2 = optimal[index-best_length_size]->bits + elias_gamma_bits(best_length_size-1);
                             if (bits2 <= bits) {
                                 best_length[best_length_size] = best_length_size;
                                 bits = bits2;
@@ -184,11 +167,11 @@ BLOCK* zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int 
                         } while(best_length_size < match_length[offset]);
                     }
                     length = best_length[match_length[offset]];
-                    bits = optimal[index-length]->bits + 8 + zx0_elias_gamma_bits((offset-1)/128+1) + zx0_elias_gamma_bits(length-1);
+                    bits = optimal[index-length]->bits + 8 + elias_gamma_bits((offset-1)/128+1) + elias_gamma_bits(length-1);
                     if (!last_match[offset] || last_match[offset]->index != index || last_match[offset]->bits > bits) {
-                        zx0_assign(&last_match[offset], zx0_allocate(bits, index, offset, length, optimal[index-length]));
+                        assign(&last_match[offset], allocate(bits, index, offset, length, optimal[index-length]));
                         if (!optimal[index] || optimal[index]->bits > bits)
-                            zx0_assign(&(optimal[index]), last_match[offset]);
+                            assign(&(optimal[index]), last_match[offset]);
                     }
                 }
             } else {
@@ -196,10 +179,10 @@ BLOCK* zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int 
                 match_length[offset] = 0;
                 if (last_match[offset]) {
                     length = index-last_match[offset]->index;
-                    bits = last_match[offset]->bits + 1 + zx0_elias_gamma_bits(length) + length*8;
-                    zx0_assign(&(last_literal[offset]), zx0_allocate(bits, index, 0, length, last_match[offset]));
+                    bits = last_match[offset]->bits + 1 + elias_gamma_bits(length) + length*8;
+                    assign(&(last_literal[offset]), allocate(bits, index, 0, length, last_match[offset]));
                     if (!optimal[index] || optimal[index]->bits > bits)
-                        zx0_assign(&(optimal[index]), last_literal[offset]);
+                        assign(&(optimal[index]), last_literal[offset]);
                 }
             }
         }
@@ -216,7 +199,7 @@ BLOCK* zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int 
     return optimal[input_size-1];
 }
 
-void zx0_reverse(unsigned char *first, unsigned char *last) {
+void reverse(unsigned char *first, unsigned char *last) {
     unsigned char c;
 
     while (first < last) {
@@ -226,32 +209,32 @@ void zx0_reverse(unsigned char *first, unsigned char *last) {
     }
 }
 
-void zx0_read_bytes(int n, int *delta) {
+void read_bytes(int n, int *delta) {
     input_index += n;
     diff += n;
     if (diff > *delta)
         *delta = diff;
 }
 
-void zx0_write_byte(int value) {
+void write_byte(int value) {
     output_data[output_index++] = value;
     diff--;
 }
 
-void zx0_write_bytes(int offset, int length) {
+void write_bytes(int offset, int length) {
     int i;
 
     if (offset > output_size+output_index) {
-        fprintf(stderr, "Error: Invalid data in input file %s\n", input_name);
+        fprintf(stderr, "Error: Invalid data\n");
         exit(1);
     }
     while (length-- > 0) {
         i = output_index-offset;
-        zx0_write_byte(output_data[i >= 0 ? i : BUFFER_SIZE+i]);
+        write_byte(output_data[i >= 0 ? i : BUFFER_SIZE+i]);
     }
 }
 
-void zx0_write_bit(int value) {
+void write_bit(int value) {
     if (backtrack) {
         if (value)
             output_data[output_index-1] |= 1;
@@ -260,7 +243,7 @@ void zx0_write_bit(int value) {
         if (!bit_mask) {
             bit_mask = 128;
             bit_index = output_index;
-            zx0_write_byte(0);
+            write_byte(0);
         }
         if (value)
             output_data[bit_index] |= bit_mask;
@@ -275,27 +258,18 @@ void write_interlaced_elias_gamma(int value, int backwards_mode) {
         ;
     i >>= 1;
     while ((i >>= 1) > 0) {
-        zx0_write_bit(backwards_mode);
-        zx0_write_bit(value & i);
+        write_bit(backwards_mode);
+        write_bit(value & i);
     }
-    zx0_write_bit(!backwards_mode);
+    write_bit(!backwards_mode);
 }
 
-int zx0_read_byte() {
-    if (input_index == partial_counter) {
-        input_index = 0;
-        partial_counter = fread(input_data, sizeof(char), BUFFER_SIZE, ifp);
-        input_size += partial_counter;
-        if (partial_counter == 0) {
-            fprintf(stderr, (input_size ? "Error: Truncated input file %s\n" : "Error: Empty input file %s\n"), input_name);
-            exit(1);
-        }
-    }
+int read_byte() {
     last_byte = input_data[input_index++];
     return last_byte;
 }
 
-int zx0_read_bit() {
+int read_bit() {
     if (backtrack) {
         backtrack = FALSE;
         return last_byte & 1;
@@ -303,27 +277,27 @@ int zx0_read_bit() {
     bit_mask >>= 1;
     if (bit_mask == 0) {
         bit_mask = 128;
-        bit_value = zx0_read_byte();
+        bit_value = read_byte();
     }
     return bit_value & bit_mask ? 1 : 0;
 }
 
 int read_interlaced_elias_gamma() {
     int value = 1;
-    while (!zx0_read_bit()) {
-        value = value << 1 | zx0_read_bit();
+    while (!read_bit()) {
+        value = value << 1 | read_bit();
     }
     return value;
 }
 
-unsigned char *zx0_compress(unsigned char *input_data, size_t input_size, bool backwards_mode, size_t *output_size) {
+unsigned char *zx0_compress(unsigned char *input_data, size_t input_size, bool quick_mode, bool backwards_mode, size_t *out_size) {
     int skip = 0;
     
     if (backwards_mode)
-        zx0_reverse(input_data, input_data+input_size-1);
+        reverse(input_data, input_data+input_size-1);
 
     /* generate output file */
-    BLOCK *optimal = zx0_optimize(input_data, input_size, 0, MAX_OFFSET_ZX0);
+    BLOCK *optimal = optimize(input_data, input_size, 0, quick_mode ? MAX_OFFSET_ZX7 : MAX_OFFSET_ZX0);
     BLOCK *next;
     BLOCK *prev;
     int last_offset = INITIAL_OFFSET;
@@ -331,15 +305,15 @@ unsigned char *zx0_compress(unsigned char *input_data, size_t input_size, bool b
     int i;
 
     /* calculate and allocate output buffer */
-    *output_size = (optimal->bits+18+7)/8;
-    output_data = (unsigned char *)malloc(*output_size);
+    *out_size = (optimal->bits+18+7)/8;
+    output_data = (unsigned char *)malloc(*out_size);
     if (!output_data) {
          fprintf(stderr, "Error: Insufficient memory\n");
          exit(1);
     }
 
     /* initialize delta */
-    diff = *output_size-input_size+skip;
+    diff = *out_size-input_size+skip;
     int delta = 0;
 
     /* un-reverse optimal sequence */
@@ -361,52 +335,52 @@ unsigned char *zx0_compress(unsigned char *input_data, size_t input_size, bool b
             if (first)
                 first = FALSE;
             else
-                zx0_write_bit(0);
+                write_bit(0);
 
             /* copy literals length */
             write_interlaced_elias_gamma(optimal->length, backwards_mode);
 
             /* copy literals values */
             for (i = 0; i < optimal->length; i++) {
-                zx0_write_byte(input_data[input_index]);
-                zx0_read_bytes(1, &delta);
+                write_byte(input_data[input_index]);
+                read_bytes(1, &delta);
             }
         } else if (optimal->offset == last_offset) {
             /* copy from last offset indicator */
-            zx0_write_bit(0);
+            write_bit(0);
 
             /* copy from last offset length */
             write_interlaced_elias_gamma(optimal->length, backwards_mode);
-            zx0_read_bytes(optimal->length, &delta);
+            read_bytes(optimal->length, &delta);
         } else {
             /* copy from new offset indicator */
-            zx0_write_bit(1);
+            write_bit(1);
 
             /* copy from new offset MSB */
             write_interlaced_elias_gamma((optimal->offset-1)/128+1, backwards_mode);
 
             /* copy from new offset LSB */
             if (backwards_mode)
-                zx0_write_byte(((optimal->offset-1)%128)<<1);
+                write_byte(((optimal->offset-1)%128)<<1);
             else
-                zx0_write_byte((255-((optimal->offset-1)%128))<<1);
+                write_byte((255-((optimal->offset-1)%128))<<1);
             backtrack = TRUE;
 
             /* copy from new offset length */
             write_interlaced_elias_gamma(optimal->length-1, backwards_mode);
-            zx0_read_bytes(optimal->length, &delta);
+            read_bytes(optimal->length, &delta);
 
             last_offset = optimal->offset;
         }
     }
 
     /* end marker */
-    zx0_write_bit(1);
+    write_bit(1);
     write_interlaced_elias_gamma(256, backwards_mode);
 
     /* conditionally reverse output file */
     if (backwards_mode)
-        zx0_reverse(output_data, output_data+*output_size-1);
+        reverse(output_data, output_data+*out_size-1);
 
     return output_data;
 }
@@ -419,7 +393,7 @@ void zx0_decompress(unsigned char *in_data, unsigned char *out_data) {
     output_data = out_data;
     input_size = 0;
     input_index = 0;
-    partial_counter = 0;
+
     output_index = 0;
     output_size = 0;
     bit_mask = 0;
@@ -429,33 +403,29 @@ void zx0_decompress(unsigned char *in_data, unsigned char *out_data) {
 COPY_LITERALS:
     length = read_interlaced_elias_gamma();
     for (i = 0; i < length; i++) {
-        zx0_write_byte(zx0_read_byte());
+        write_byte(read_byte());
     }
-    if (zx0_read_bit()) {
+    if (read_bit()) {
         goto COPY_FROM_NEW_OFFSET;
     }
 
 /*COPY_FROM_LAST_OFFSET:*/
     length = read_interlaced_elias_gamma();
-    zx0_write_bytes(last_offset, length);
-    if (!zx0_read_bit()) {
+    write_bytes(last_offset, length);
+    if (!read_bit()) {
         goto COPY_LITERALS;
     }
 
 COPY_FROM_NEW_OFFSET:
     last_offset = read_interlaced_elias_gamma();
     if (last_offset == 256) {
-        if (input_index != partial_counter) {
-            fprintf(stderr, "Error: Input file %s too long\n", input_name);
-            exit(1);
-        }
         return;
     }
-    last_offset = ((last_offset-1)<<7)+128-(zx0_read_byte()>>1);
+    last_offset = ((last_offset-1)<<7)+128-(read_byte()>>1);
     backtrack = TRUE;
     length = read_interlaced_elias_gamma()+1;
-    zx0_write_bytes(last_offset, length);
-    if (zx0_read_bit()) {
+    write_bytes(last_offset, length);
+    if (read_bit()) {
         goto COPY_FROM_NEW_OFFSET;
     } else {
         goto COPY_LITERALS;

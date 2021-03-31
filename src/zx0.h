@@ -28,10 +28,20 @@
 
 #include <stdbool.h>
 
-#define INITIAL_OFFSET 1
-
 #define FALSE 0
 #define TRUE 1
+
+#define INITIAL_OFFSET 1
+
+#define MAX_OFFSET_ZX0    32640
+#define MAX_OFFSET_ZX7     2176
+
+#define MAX_SCALE 50
+
+#define QTY_BLOCKS 10000
+
+#define BUFFER_SIZE 65536  /* must be > MAX_OFFSET */
+#define INITIAL_OFFSET 1
 
 typedef struct block_t {
     struct block_t *chain;
@@ -43,13 +53,13 @@ typedef struct block_t {
     int references;
 } BLOCK;
 
-BLOCK *zx0_allocate(int bits, int index, int offset, int length, BLOCK *chain);
+BLOCK *allocate(int bits, int index, int offset, int length, BLOCK *chain);
 
-void zx0_assign(BLOCK **ptr, BLOCK *chain);
+void assign(BLOCK **ptr, BLOCK *chain);
 
-BLOCK *zx0_optimize(unsigned char *input_data, size_t input_size, int skip, int offset_limit);
+BLOCK *optimize(unsigned char *input_data, size_t input_size, int skip, int offset_limit);
 
-unsigned char *zx0_compress(unsigned char *input_data, size_t input_size, bool backwards_mode, size_t *output_size);
+unsigned char *zx0_compress(unsigned char *input_data, size_t input_size, bool quick_mode, bool backwards_mode, size_t *out_size);
 void zx0_decompress(unsigned char *in_data, unsigned char *out_data);
 
 #endif

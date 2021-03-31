@@ -26,6 +26,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-debug|Output additional debug information.|
 |-font|Sets output to Next font format (.spr).|
 |-screen|Sets output to Spectrum screen format (.scr).|
+|-screen-attribs|Remove color attributes.|
 |-bitmap|Sets output to Next bitmap mode (.nxi).|
 |-bitmap-y|Get bitmap in Y order first. (Default is X order first).|
 |-sprites|Sets output to Next sprite mode (.spr).|
@@ -62,8 +63,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-pal-none|No raw palette is created.|
 |-zx0|Compress the image data using zx0.|
 |-zx0-back|Compress the image data using zx0 in reverse.|
-|-zx7|Compress the image data using zx7.|
-|-zx7-back|Compress the image data using zx7 in reverse.|
+|-zx0-quick|Compress the image data using zx0 in quick mode.|
 |-megalz|Compress the image data using MegaLZ optimal.|
 |-megalz-greedy|Compress the image data using MegaLZ greedy.|
 |-asm-z80asm|Generate header and asm binary include files (in Z80ASM format).|
@@ -84,13 +84,12 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 https://github.com/headkaze/Gfx2Next
 
 ## Compiling
-gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/zx7.c src/megalz.c src/gfx2next.c
+gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/megalz.c src/gfx2next.c
 
 ## Credits
 
-* Antonio Villena - ZX7b
 * Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
-* Einar Saukas - ZX0 / ZX7
+* Einar Saukas - ZX0
 * Jim Bagley - NextGrab / MapGrabber
 * Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
 * Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)

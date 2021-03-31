@@ -3,9 +3,8 @@
  * 
  * Credits:
  *
- *    Antonio Villena - ZX7b
  *    Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
- *    Einar Saukas - ZX0 / ZX7
+ *    Einar Saukas - ZX0
  *    Jim Bagley - NextGrab / MapGrabber
  *    Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
  *    Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
@@ -37,11 +36,10 @@
 #include <math.h>
 #include <assert.h>
 #include "zx0.h"
-#include "zx7.h"
 #include "megalz.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.2"
+#define VERSION						"1.0.3"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -91,26 +89,71 @@
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
 #define MAX(x,y)					((x) > (y) ? (x) : (y))
 
-#define IS_COMPRESSED				(m_args.zx0_mode > ZX0MODE_NONE || m_args.zx7_mode > ZX7MODE_NONE || m_args.megalz_mode > MEGALZMODE_NONE)
+#define IS_COMPRESSED				(m_args.zx0_mode > ZX0MODE_NONE || m_args.megalz_mode > MEGALZMODE_NONE)
 
+#define EXT_ZX0						".zx0"
+#define EXT_MEGALZ					".mlz"
+
+#define EXT_BIN						".bin"
 #define EXT_NXM						".nxm"
-#define EXT_NXM_COMPRESSED			".nzm"
 #define EXT_NXP						".nxp"
-#define EXT_NXP_COMPRESSED			".nzp"
 #define EXT_NXT						".nxt"
-#define EXT_NXT_COMPRESSED			".nzt"
 #define EXT_SPR						".spr"
-#define EXT_SPR_COMPRESSED			".szr"
 #define EXT_NXB						".nxb"
-#define EXT_NXB_COMPRESSED			".nzb"
 #define EXT_NXI						".nxi"
-#define EXT_NXI_COMPRESSED			".nzi"
 #define EXT_SCR						".scr"
-#define EXT_SCR_COMPRESSED			".szr"
 
 static void write_easter_egg();
 
-unsigned char m_gf[] = { 0xff,0x81,0x4c,0x00,0xf8,0x00,0x46,0x07,0x04,0x0f,0xc0,0x00,0x00,0x3f,0x5e,0x0f,0x1d,0xf8,0x45,0x01,0x29,0x0e,0xfc,0x1c,0x80,0x14,0x20,0xf0,0xb8,0x13,0xa5,0x41,0xe3,0xa2,0x04,0xc1,0x52,0x0f,0x87,0x22,0x63,0x7f,0x16,0x0f,0x1f,0x04,0xfe,0x92,0x05,0x49,0x09,0x51,0x4a,0x8f,0x12,0x5e,0xa2,0x29,0xc7,0x02,0x9d,0x57,0x06,0xf1,0x02,0x18,0x08,0xf8,0x8c,0x6e,0xa9,0x46,0xe7,0x60,0x38,0x9c,0xa1,0x13,0xcf,0x23,0x07,0x9f,0x90,0x07,0xdf,0xb4,0x27,0xe8,0x0f,0xe7,0xe9,0x57,0xe7,0x0f,0x77,0x4c,0xf3,0xae,0x10,0xba,0x0f,0xfb,0x54,0x06,0xfd,0x2e,0x0f,0xf9,0x8c,0x06,0x9f,0x18,0x26,0x81,0xb9,0x0f,0xf3,0x1c,0x0f,0xf7,0x81,0xc5,0x0f,0xf3,0x9c,0x9c,0x50,0x8f,0x33,0x83,0xd0,0xb3,0xfe,0x9e,0x0f,0x84,0x0c,0xe0,0x00,0x0f,0x58,0x0f,0x1f,0xf0,0x0f,0x46,0x83,0x68,0x0f,0x42,0xc1,0x95,0x0f,0xf1,0x92,0xd8,0xf8,0x2c,0xef,0x12,0xdf,0x9a,0xe3,0xc1,0x6a,0x0f,0x1b,0x14,0xc0,0x0f,0xbf,0x04,0x7f,0x94,0x0f,0x00,0x5f,0xd2,0xcd,0xd1,0xbd,0xbe,0x74,0x74,0x3a,0x30,0xca,0x0f,0x3c,0x03,0x08,0x25,0x7f,0x9f,0x0f,0x6f,0x60,0x0f,0x1c,0x0f,0x42,0x25,0xf1,0xdf,0x2f,0x76,0xe1,0x17,0x0f,0xfd,0x26,0xe0,0xcf,0x5f,0xab,0x4b,0x6e,0x23,0xde,0x6f,0x04,0x0f,0xfb,0xbf,0xa7,0x69,0x0f,0x3f,0xf7,0x19,0x0f,0xc6,0x5f,0x89,0x0f,0xfe,0x5f,0x77,0x93,0x0f,0x3f,0x1a,0xf7,0x67,0x64,0x0f,0x7f,0xa8,0x0f,0xbf,0xd1,0x0f,0xfc,0xdf,0x6f,0x1a,0x0f,0xfe,0x4a,0x4f,0x0f,0xfe,0x99,0x2f,0xfe,0x30,0xaf,0x4c,0xb0,0x9c,0x0f,0xa0,0xcf,0xf3,0x9e,0x0f,0x62,0x77,0xf7,0xfc,0x53,0x92,0x13,0xfd,0xdf,0x3f,0xa5,0x0f,0xfc,0x0f,0x4f,0x7f,0x0f,0x7a,0x51,0x04,0x3a,0x55,0x0f,0xf3,0x59,0x0f,0x29,0xf3,0xe6,0x30,0xbf,0xeb,0x0f,0x9e,0x49,0x13,0xf7,0xcc,0xff,0xac,0x7f,0x9e,0x79,0xf7,0xf9,0x88,0x0f,0x2d,0x7f,0xef,0xbe,0x53,0xf1,0x12,0x0f,0xfd,0x83,0xaa,0xce,0xe3,0x69,0x0f,0x89,0x27,0xef,0x8f,0x93,0x0f,0xf3,0x23,0x0f,0x1f,0x49,0x0f,0xe8,0x3f,0xa6,0x0f,0x87,0x69,0x8b,0xbe,0xbf,0x54,0xef,0xa8,0x07,0xcc,0xab,0x0f,0xe2,0x04,0xde,0xc4,0x0f,0xfd,0xcf,0xac,0xc3,0xde,0x9b,0x3f,0xd7,0x09,0x59,0xe3,0x9e,0x32,0x5f,0xfc,0xe8,0x0f,0xc0,0x09,0xbe,0x0f,0x66,0x0f,0xb6,0x1d,0x12,0x07,0x39,0x0f,0x80,0x00,0x64,0x4a,0x3f,0x03,0xce,0x0f,0x7e,0x0d,0xc8,0x3a,0x7f,0x01,0x97,0x9f,0x5a,0xed,0x06,0x00,0x5e,0x0f,0x18,0xac,0x63,0x82,0x27,0xc3,0x92,0x7f,0xf1,0x52,0x0f,0x80,0x0f,0x35,0xdf,0xf3,0xf4,0x9a,0x68,0x74,0x0f,0x03,0x74,0x0f,0xc9,0x50,0xdf,0xe6,0x0f,0x50,0x27,0xdf,0xfd,0x0f,0x94,0x81,0x04,0xef,0xf0,0x3f,0xd2,0x0f,0xa2,0x20,0xcf,0x6d,0x0f,0x71,0xf6,0x35,0x66,0xda,0x0f,0x30,0xc0,0x2a,0x0f,0x88,0x30,0xfe,0x00,0xbd,0x0f,0x30,0xf8,0x19,0x0f,0x83,0x92,0xe0,0x03,0x99,0x0f,0x00,0x7c,0x00,0x05,0x6a,0x0f,0xfc,0xe2,0x54,0xbe,0x0f,0x2e,0x00,0x61,0x97,0x92,0x0f,0xd1,0x44,0x7f,0x56,0x0f,0x00,0x1f,0x8e,0x0f,0x96,0x70,0xa7,0x49,0x00,0x23,0xf8,0x03,0x51,0x0f,0x01,0xb2,0x1f,0xa2,0x70,0xf8,0x08,0x0f,0x02,0x7f,0xe4,0x0f,0x3f,0x69,0x0f,0x04,0x9f,0x1a,0x0f,0x06,0x90,0xb1,0xd1,0xe8,0x32,0x0f,0x32,0x88,0xe0,0x25,0x0f,0xf9,0x1c,0x3f,0xfc,0x8e,0x0f,0x91,0x8f,0x51,0xf0,0x32,0x2f,0x32,0x81,0x90,0x26,0x1f,0x40,0x9f,0x47,0xa0,0x22,0x0f,0x60,0xad,0x2f,0x00,0x40,0x1a,0x0f,0xfe,0x43,0x80,0x08,0x0f,0x0e,0xa1,0xae,0x80,0x00,0x40 };
+unsigned char m_gf[] =
+{
+	0x84, 0xff, 0x42, 0x7c, 0xf8, 0x00, 0x07, 0xe0, 0x2a, 0xc0, 0x24, 0x00,
+	0x3f, 0x38, 0xc5, 0xe4, 0xf8, 0x01, 0xe2, 0xba, 0xfc, 0xc6, 0xe4, 0x80,
+	0xbe, 0xbf, 0xf0, 0xd8, 0x92, 0x7c, 0xfa, 0xe3, 0x38, 0xc1, 0x12, 0x86,
+	0x87, 0xe0, 0x7f, 0xe0, 0xbe, 0x1f, 0xf4, 0x87, 0xfe, 0x8f, 0xec, 0x6a,
+	0xe8, 0x43, 0x8f, 0x1e, 0xac, 0x6c, 0xc7, 0xda, 0x96, 0xf8, 0x4a, 0xf1,
+	0x02, 0x97, 0xf1, 0xc3, 0x22, 0xa7, 0x93, 0xfe, 0xc2, 0x8e, 0xf2, 0x3f,
+	0xf0, 0x96, 0xcf, 0x95, 0x9f, 0xbd, 0xdf, 0xb0, 0x7d, 0xe0, 0x2f, 0xe7,
+	0x50, 0x7d, 0xe0, 0x29, 0xff, 0x69, 0xf3, 0x29, 0xfc, 0x02, 0x92, 0xfb,
+	0x90, 0xfd, 0x2f, 0xf9, 0xf2, 0x0f, 0xce, 0x7f, 0xb3, 0xe0, 0x15, 0x29,
+	0xf3, 0x5a, 0xf7, 0x50, 0x4b, 0xf3, 0x1c, 0xc7, 0x92, 0xe0, 0xa6, 0x83,
+	0xf0, 0x00, 0x3f, 0x07, 0xe7, 0xe6, 0xe0, 0x00, 0x0f, 0x96, 0xe0, 0x09,
+	0x1f, 0xf0, 0x0f, 0x83, 0x1e, 0x7b, 0xc8, 0xc1, 0x20, 0x6a, 0xf1, 0x8a,
+	0xdf, 0xf8, 0x43, 0xc7, 0xe1, 0x38, 0xfc, 0xb9, 0xe0, 0xe9, 0xc8, 0xc6,
+	0xc0, 0x0f, 0xbf, 0x9f, 0x92, 0xc0, 0x68, 0xfb, 0x00, 0x5f, 0x9a, 0x80,
+	0x07, 0xbe, 0x1e, 0x8b, 0xe2, 0x30, 0xe1, 0x3c, 0x03, 0x62, 0x7f, 0x9f,
+	0x4a, 0x60, 0x29, 0x1c, 0x98, 0xfe, 0xf1, 0xdf, 0x66, 0xfb, 0xe1, 0x9f,
+	0x76, 0x61, 0x65, 0xfd, 0xe0, 0xcf, 0xa7, 0xbf, 0xa2, 0xe0, 0xde, 0x6f,
+	0x46, 0x65, 0xfb, 0xbf, 0xa7, 0x22, 0x3f, 0xf7, 0x47, 0xf1, 0x41, 0xe0,
+	0x99, 0xfe, 0x5f, 0x77, 0x69, 0x3f, 0x22, 0x7f, 0x67, 0x5a, 0x7f, 0x4a,
+	0xbf, 0x52, 0x65, 0xfc, 0xdf, 0x6f, 0x22, 0xfe, 0x4f, 0x4a, 0xfe, 0x4a,
+	0xfe, 0xa5, 0xdf, 0xa5, 0xff, 0xa1, 0x9f, 0xa0, 0xf3, 0x3c, 0x10, 0x8f,
+	0xf7, 0xfc, 0xbb, 0xe6, 0xe0, 0xfd, 0xdf, 0x3f, 0x02, 0x92, 0xfc, 0x80,
+	0x7f, 0xfe, 0x5c, 0xf7, 0xe6, 0x3a, 0xe0, 0x9a, 0xf3, 0x3f, 0x62, 0xf3,
+	0xe6, 0x4a, 0xfb, 0x23, 0x9e, 0xbf, 0xeb, 0xb0, 0xcc, 0xd8, 0x00, 0xfa,
+	0x9e, 0xdf, 0xe0, 0xf9, 0x06, 0x26, 0x7f, 0xef, 0x25, 0xe7, 0xf1, 0xb0,
+	0xfd, 0xbe, 0x86, 0xe0, 0x97, 0xe3, 0xc8, 0xb0, 0xf2, 0xef, 0x8f, 0xe0,
+	0x96, 0xf3, 0x94, 0x1f, 0x89, 0xe8, 0x3f, 0x69, 0xe7, 0x22, 0xc0, 0x7f,
+	0x48, 0x92, 0xf9, 0xef, 0x85, 0xcc, 0xa6, 0xfe, 0x96, 0xde, 0x26, 0xfd,
+	0xcf, 0x9a, 0x7f, 0x3f, 0x5c, 0xee, 0xc6, 0x3f, 0x41, 0x96, 0x9e, 0xfa,
+	0xfc, 0xe0, 0xbf, 0x22, 0xbe, 0x0f, 0x4d, 0xce, 0x92, 0xdb, 0xf6, 0x07,
+	0xe0, 0x66, 0x80, 0x00, 0x7f, 0x25, 0x3f, 0x03, 0xbe, 0x7e, 0xe5, 0x8a,
+	0xda, 0x15, 0x01, 0x0e, 0x48, 0x6f, 0xed, 0xf2, 0xb9, 0x00, 0xe0, 0xa6,
+	0xff, 0x9a, 0xfd, 0xff, 0xa5, 0x3f, 0xa4, 0xf1, 0xbc, 0x80, 0x3e, 0xf3,
+	0xd2, 0xa4, 0xe1, 0x07, 0xa0, 0xbf, 0x29, 0x03, 0x5a, 0x00, 0x4a, 0xdf,
+	0x06, 0x92, 0x3f, 0x80, 0xfd, 0xa1, 0x01, 0x99, 0xef, 0xf0, 0x3f, 0x7f,
+	0xbf, 0xe0, 0xa1, 0xcf, 0x3e, 0x1d, 0x33, 0x9f, 0xf6, 0xe0, 0x69, 0x01,
+	0xa1, 0xc0, 0x3e, 0x9e, 0x39, 0xfe, 0x00, 0xe0, 0x6a, 0x0f, 0x91, 0xf8,
+	0xaa, 0x03, 0xe0, 0xa5, 0x03, 0xa6, 0x00, 0xa9, 0x00, 0x00, 0x4a, 0xfc,
+	0x29, 0x01, 0x0a, 0xe0, 0x29, 0x00, 0x28, 0xfe, 0x69, 0x80, 0xa1, 0x7f,
+	0x69, 0x00, 0xa5, 0x1f, 0x68, 0x07, 0x68, 0xfc, 0x19, 0x94, 0x00, 0xf8,
+	0x03, 0xfc, 0x3d, 0xe0, 0x3f, 0xe3, 0xe0, 0xa0, 0xf8, 0x62, 0x02, 0x7f,
+	0x56, 0x94, 0x3f, 0x89, 0x04, 0x9f, 0x48, 0x82, 0x06, 0xef, 0x84, 0xe8,
+	0xa0, 0xf7, 0xa1, 0xe0, 0x2f, 0xf9, 0x80, 0x4a, 0xfc, 0x52, 0x66, 0x04,
+	0xfe, 0x7f, 0x84, 0xf0, 0xbe, 0xff, 0xe0, 0x81, 0x90, 0xaa, 0x04, 0xff,
+	0x69, 0xa0, 0x5a, 0x60, 0x06, 0x86, 0x06, 0x94, 0x40, 0x89, 0xfe, 0x80,
+	0x06, 0xd9, 0x0e, 0xa2, 0x30, 0x00, 0x08
+};
 
 uint32_t m_screenColors[] =
 {
@@ -147,13 +190,6 @@ typedef enum
 	ZX0MODE_STANDARD,
 	ZX0MODE_BACKWARDS
 } zx0_mode_t;
-
-typedef enum
-{
-	ZX7MODE_NONE,
-	ZX7MODE_STANDARD,
-	ZX7MODE_BACKWARDS
-} zx7_mode_t;
 
 typedef enum
 {
@@ -210,6 +246,7 @@ typedef struct
 	bool debug;
 	bool font;
 	bool screen;
+	bool screen_attribs;
 	bool bitmap;
 	bool bitmap_y;
 	bool sprites;
@@ -233,7 +270,7 @@ typedef struct
 	bool pal_min;
 	bool pal_std;
 	zx0_mode_t zx0_mode;
-	zx7_mode_t zx7_mode;
+	bool zx0_quick;
 	megalz_mode_t megalz_mode;
 	asm_mode_t asm_mode;
 	char *asm_file;
@@ -250,6 +287,7 @@ static arguments_t m_args  =
 	.debug = false,
 	.font = false,
 	.screen = false,
+	.screen_attribs = false,
 	.bitmap = false,
 	.bitmap_y = false,
 	.sprites = false,
@@ -273,7 +311,7 @@ static arguments_t m_args  =
 	.pal_min = false,
 	.pal_std = false,
 	.zx0_mode = ZX0MODE_NONE,
-	.zx7_mode = ZX7MODE_NONE,
+	.zx0_quick = false,
 	.megalz_mode = MEGALZMODE_NONE,
 	.asm_mode = ASMMODE_NONE,
 	.asm_file = NULL,
@@ -739,6 +777,7 @@ static void print_usage(void)
 	printf("  -debug                  Output additional debug information.\n");
 	printf("  -font                   Sets output to Next font format (.spr).\n");
 	printf("  -screen                 Sets output to Spectrum screen format (.scr).\n");
+	printf("  -screen-attribs         Remove color attributes.\n");
 	printf("  -bitmap                 Sets output to Next bitmap mode (.nxi).\n");
 	printf("  -bitmap-y               Get bitmap in Y order first. (Default is X order first).\n");
 	printf("  -sprites                Sets output to Next sprite mode (.spr).\n");
@@ -779,8 +818,7 @@ static void print_usage(void)
 	printf("  -pal-none               No raw palette is created.\n");
 	printf("  -zx0                    Compress the image data using zx0.\n");
 	printf("  -zx0-back               Compress the image data using zx0 in reverse.\n");
-	printf("  -zx7                    Compress the image data using zx7.\n");
-	printf("  -zx7-back               Compress the image data using zx7 in reverse.\n");
+	printf("  -zx0-quick              Compress the image data using zx0 in quick mode.\n");
 	printf("  -megalz                 Compress the image data using MegaLZ optimal.\n");
 	printf("  -megalz-greedy          Compress the image data using MegaLZ greedy.\n");
 	printf("  -asm-z80asm             Generate header and asm binary include files (in Z80ASM format).\n");
@@ -817,6 +855,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.screen = true;
 				m_args.pal_mode = PALMODE_NONE;
+			}
+			else if (!strcmp(argv[i], "-screen-attribs"))
+			{
+				m_args.screen_attribs = true;
 			}
 			else if (!strcmp(argv[i], "-bitmap"))
 			{
@@ -1003,13 +1045,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.zx0_mode = ZX0MODE_BACKWARDS;
 			}
-			else if (!strcmp(argv[i], "-zx7"))
+			else if (!strcmp(argv[i], "-zx0-quick"))
 			{
-				m_args.zx7_mode = ZX7MODE_STANDARD;
-			}
-			else if (!strcmp(argv[i], "-zx7-back"))
-			{
-				m_args.zx7_mode = ZX7MODE_BACKWARDS;
+				m_args.zx0_mode = (m_args.zx0_mode == ZX0MODE_NONE ? ZX0MODE_STANDARD : m_args.zx0_mode);
+				m_args.zx0_quick = true;
 			}
 			else if (!strcmp(argv[i], "-megalz"))
 			{
@@ -1099,24 +1138,40 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 	return true;
 }
 
-static void create_filename(char *out_filename, const char *in_filename, const char *extension)
+static const char *get_compression_ext()
+{
+	if (m_args.zx0_mode > ZX0MODE_NONE)
+		return EXT_ZX0;
+	else if (m_args.megalz_mode > MEGALZMODE_NONE)
+		return EXT_MEGALZ;
+	
+	return NULL;
+}
+
+static void create_filename(char *out_filename, const char *in_filename, const char *extension, const char *compression_ext)
 {
 	strcpy(out_filename, in_filename);
 
-	char *end = strrchr(out_filename, '.');
-	end = (end == NULL) ? out_filename + strlen(out_filename) : end;
+	char *end = strchr(out_filename, '.');
+	end = (end == NULL ? out_filename + strlen(out_filename) : end);
 
 	strcpy(end, extension);
+	
+	if (compression_ext != NULL)
+		strcat(out_filename, compression_ext);
 }
 
-static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, int index)
+static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, const char *compression_ext, int index)
 {
 	strcpy(out_filename, in_filename);
 	
-	char *end = strrchr(out_filename, '.');
+	char *end = strchr(out_filename, '.');
 	out_filename[end == NULL ? strlen(out_filename) : (int)(end - out_filename)] = '\0';
 
 	snprintf(out_filename, 255, "%s_%d%s", out_filename, index, extension);
+	
+	if (compression_ext != NULL)
+		strcat(out_filename, compression_ext);
 }
 
 static void to_upper(char *filename)
@@ -1569,7 +1624,7 @@ static void read_next_image()
 	}
 }
 
-static void write_1bit(const char *filename, uint8_t *data)
+static void write_1bit_png(const char *filename, uint8_t *data)
 {
 	m_args.bitmap = true;
 	m_args.colors_4bit = true;
@@ -1581,7 +1636,7 @@ static void write_1bit(const char *filename, uint8_t *data)
 	
 	m_next_palette[1] = 0x01ff;
 	
-	zx7_decompress(data, buffer_decompress);
+	zx0_decompress(data, buffer_decompress);
 	
 	uint8_t *p_data = buffer_decompress;
 	uint8_t *p_buffer = buffer_out;
@@ -1599,7 +1654,7 @@ static void write_1bit(const char *filename, uint8_t *data)
 
 static void write_easter_egg()
 {
-	write_1bit("gf.png", m_gf);
+	write_1bit_png("gf.png", m_gf);
 }
 
 static void write_asm_header()
@@ -1648,7 +1703,7 @@ static void write_asm_file(char *p_filename, uint32_t data_size)
 static void write_asm_sequence()
 {
 	char sequence_filename[256] = { 0 };
-	create_filename(sequence_filename, m_args.out_filename, "_sequence");
+	create_filename(sequence_filename, m_args.out_filename, "_sequence", NULL);
 	
 	if (m_args.asm_mode == ASMMODE_SJASM)
 	{
@@ -1699,7 +1754,7 @@ static void write_header_file(char *p_filename, bool type_16bit)
 static void write_header_header(char *p_filename)
 {
 	char header_filename[256] = { 0 };
-	create_filename(header_filename, p_filename, "_H");
+	create_filename(header_filename, p_filename, "_H", NULL);
 	
 	to_upper(header_filename);
 	alphanumeric_to_underscore(header_filename);
@@ -1716,7 +1771,7 @@ static void write_header_footer()
 static void write_header_sequence()
 {	
 	char header_filename[256] = { 0 };
-	create_filename(header_filename, m_args.out_filename, "_sequence");
+	create_filename(header_filename, m_args.out_filename, "_sequence", NULL);
 	
 	fprintf(m_header_file, "extern uint8_t *%s;\n", header_filename);
 }
@@ -1744,9 +1799,7 @@ static void write_file(FILE *p_file, char *p_filename, uint8_t *p_buffer, uint32
 		uint8_t *compressed_buffer = NULL;
 		
 		if (m_args.zx0_mode > ZX0MODE_NONE)
-			compressed_buffer = zx0_compress(p_buffer, buffer_size, m_args.zx0_mode == ZX0MODE_BACKWARDS, &compressed_size);
-		else if (m_args.zx7_mode > ZX7MODE_NONE)
-			compressed_buffer = zx7_compress(p_buffer, buffer_size, m_args.zx7_mode == ZX7MODE_BACKWARDS, &compressed_size);
+			compressed_buffer = zx0_compress(p_buffer, buffer_size, m_args.zx0_quick, m_args.zx0_mode == ZX0MODE_BACKWARDS, &compressed_size);
 		else
 			compressed_buffer = megalz_compress(p_buffer, buffer_size, m_args.megalz_mode, &compressed_size);
 
@@ -1801,7 +1854,7 @@ static void write_next_palette()
 	{
 		char palette_filename[256] = { 0 };
 		
-		create_filename(palette_filename, m_bitmap_filename, IS_COMPRESSED ? EXT_NXP_COMPRESSED : EXT_NXP);
+		create_filename(palette_filename, m_bitmap_filename, EXT_NXP, get_compression_ext());
 		
 		FILE *palette_file = fopen(palette_filename, "wb");
 	
@@ -1822,7 +1875,7 @@ static void write_next_bitmap_file(FILE *bitmap_file, char *bitmap_filename, uin
 	
 	if (m_args.preview)
 	{
-		create_filename(m_bitmap_filename, m_args.out_filename, "_preview.png");
+		create_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", NULL);
 
 		write_png(m_bitmap_filename, m_next_image, m_image_width, m_image_height);
 	}
@@ -1862,10 +1915,39 @@ static uint8_t *get_bank(uint8_t *p_data, int bank_size)
 	return bank;
 }
 
+/* static void write_1bit()
+{
+	char onebit_filename[256] = { 0 };
+	create_filename(onebit_filename, m_args.out_filename, EXT_BIN, get_compression_ext());
+	FILE *p_file = fopen(onebit_filename, "wb");
+	
+	if (p_file == NULL)
+	{
+		exit_with_msg("Can't create file %s.\n", onebit_filename);
+	}
+	
+	uint32_t image_size = (m_image_width * m_image_height) / 8;
+	uint8_t *p_buffer = malloc(image_size);
+	
+	for (int y = 0; y < m_image_height; y++)
+	{
+		for (int x = 0; x < m_image_width; x++)
+		{
+			int index = y * m_image_width + x;
+			p_buffer[index >> 3] |= m_next_image[index] ? 1 << (7 - (x % 8)) : 0;
+		}
+	}
+	
+	write_file(p_file, onebit_filename, p_buffer, image_size, false);
+	
+	free(p_buffer);
+	fclose(p_file);
+} */
+
 static void write_font()
 {
 	char font_filename[256] = { 0 };
-	create_filename(font_filename, m_args.out_filename, IS_COMPRESSED ? EXT_SPR_COMPRESSED : EXT_SPR);
+	create_filename(font_filename, m_args.out_filename, EXT_SPR, get_compression_ext());
 	FILE *p_file = fopen(font_filename, "wb");
 	
 	if (p_file == NULL)
@@ -1905,7 +1987,7 @@ static void write_font()
 static void write_screen()
 {
 	char screen_filename[256] = { 0 };
-	create_filename(screen_filename, m_args.out_filename, IS_COMPRESSED ? EXT_SCR_COMPRESSED : EXT_SCR);
+	create_filename(screen_filename, m_args.out_filename, EXT_SCR, get_compression_ext());
 	FILE *p_file = fopen(screen_filename, "wb");
 	
 	if (p_file == NULL)
@@ -1917,7 +1999,7 @@ static void write_screen()
 	uint32_t cols_count = m_image_width / 8;
 	uint32_t rows_count = m_image_height / 8;
 	uint32_t attrib_size = cols_count * rows_count;
-	uint32_t total_size = image_size + attrib_size;
+	uint32_t total_size = (m_args.screen_attribs ? image_size : image_size + attrib_size);
 	uint8_t *p_buffer = malloc(total_size);
 	uint8_t *p_pixels = malloc(image_size);
 	uint32_t *p_attrib = malloc(attrib_size * sizeof(uint32_t) * 2);
@@ -2009,12 +2091,15 @@ static void write_screen()
 		}
 	}
 	
-	for (int i = 0; i < attribCount >> 1; i++)
+	if (!m_args.screen_attribs)
 	{
-		uint8_t paper = get_screen_color_attribs(p_attrib[i * 2], false);
-		uint8_t ink = get_screen_color_attribs(p_attrib[i * 2 + 1], true);
+		for (int i = 0; i < attribCount >> 1; i++)
+		{
+			uint8_t paper = get_screen_color_attribs(p_attrib[i * 2], false);
+			uint8_t ink = get_screen_color_attribs(p_attrib[i * 2 + 1], true);
 
-		p_buffer[image_size + i] = (paper | ink);
+			p_buffer[image_size + i] = (paper | ink);
+		}
 	}
 	
 	int pixelIndex = 0;
@@ -2054,7 +2139,7 @@ static void write_next_bitmap()
 		{
 			int bank_size = (size < m_bank_size ? size : m_bank_size);
 			
-			create_series_filename(m_bitmap_filename, m_args.out_filename, IS_COMPRESSED ? EXT_NXI_COMPRESSED : EXT_NXI, m_bank_count);
+			create_series_filename(m_bitmap_filename, m_args.out_filename, EXT_NXI, get_compression_ext(), m_bank_count);
 
 			if (m_args.asm_mode > ASMMODE_NONE)
 			{
@@ -2084,7 +2169,7 @@ static void write_next_bitmap()
 
 			if (m_args.preview)
 			{
-				create_series_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", m_bank_count);
+				create_series_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", NULL, m_bank_count);
 
 				write_png(m_bitmap_filename, p_image, m_bank_width, m_bank_height);
 				//write_png(m_bitmap_filename, p_image, m_bank_width, bank_size / m_bank_width);
@@ -2132,11 +2217,11 @@ static void write_tiles_sprites()
 			
 			if (m_args.sprites)
 			{
-				create_series_filename(out_filename, m_args.out_filename, IS_COMPRESSED ? EXT_SPR_COMPRESSED : EXT_SPR, m_bank_count);
+				create_series_filename(out_filename, m_args.out_filename, EXT_SPR, get_compression_ext(), m_bank_count);
 			}
 			else
 			{
-				create_series_filename(out_filename, m_args.out_filename, IS_COMPRESSED ? EXT_NXT_COMPRESSED : EXT_NXT, m_bank_count);
+				create_series_filename(out_filename, m_args.out_filename, EXT_NXT, get_compression_ext(), m_bank_count);
 			}
 			
 			if (m_args.asm_mode > ASMMODE_NONE)
@@ -2159,7 +2244,7 @@ static void write_tiles_sprites()
 
 			if (m_args.preview)
 			{
-				create_series_filename(out_filename, m_args.out_filename, "_preview.png", m_bank_count);
+				create_series_filename(out_filename, m_args.out_filename, "_preview.png", NULL, m_bank_count);
 
 				write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_bank_width, bank_size / m_bank_width);
 			}
@@ -2172,11 +2257,11 @@ static void write_tiles_sprites()
 	{
 		if (m_args.sprites)
 		{
-			create_filename(out_filename, m_args.out_filename, IS_COMPRESSED ? EXT_SPR_COMPRESSED : EXT_SPR);
+			create_filename(out_filename, m_args.out_filename, EXT_SPR, get_compression_ext());
 		}
 		else
 		{
-			create_filename(out_filename, m_args.out_filename, IS_COMPRESSED ? EXT_NXT_COMPRESSED : EXT_NXT);
+			create_filename(out_filename, m_args.out_filename, EXT_NXT, get_compression_ext());
 		}
 		
 		FILE *p_file = fopen(out_filename, "wb");
@@ -2208,7 +2293,7 @@ static void write_tiles_sprites()
 static void write_blocks()
 {
 	char block_filename[256] = { 0 };
-	create_filename(block_filename, m_args.out_filename, IS_COMPRESSED ? EXT_NXB_COMPRESSED : EXT_NXB);
+	create_filename(block_filename, m_args.out_filename, EXT_NXB, get_compression_ext());
 	FILE *p_file = fopen(block_filename, "wb");
 	
 	if (p_file == NULL)
@@ -2245,7 +2330,7 @@ static void write_blocks()
 static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
 {
 	char map_filename[256] = { 0 };
-	create_filename(map_filename, m_args.out_filename, IS_COMPRESSED ? EXT_NXM_COMPRESSED : EXT_NXM);
+	create_filename(map_filename, m_args.out_filename, EXT_NXM, get_compression_ext());
 	FILE *p_file = fopen(map_filename, "wb");
 	
 	if (p_file == NULL)
@@ -2827,7 +2912,7 @@ static void parse_tmx(char *file_name)
 int main(int argc, char *argv[])
 {
 	atexit(exit_handler);
-
+	
 	// Parse program arguments.
 	if (!parse_args(argc, argv, &m_args))
 	{
@@ -2835,7 +2920,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create file names for raw image file and, if separate, raw palette file.
-	create_filename(m_bitmap_filename, m_args.out_filename != NULL ? m_args.out_filename : m_args.in_filename, IS_COMPRESSED ? EXT_NXI_COMPRESSED : EXT_NXI);
+	create_filename(m_bitmap_filename, m_args.out_filename != NULL ? m_args.out_filename : m_args.in_filename, EXT_NXI, get_compression_ext());
 	
 	if (!strcmp(m_args.in_filename, m_bitmap_filename))
 	{
@@ -2860,7 +2945,7 @@ int main(int argc, char *argv[])
 	{
 		char asm_filename[256] = { 0 };
 		
-		create_filename(asm_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".asm");
+		create_filename(asm_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".asm", NULL);
 		
 		m_asm_file = fopen(asm_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
 		
@@ -2878,7 +2963,7 @@ int main(int argc, char *argv[])
 		{
 			char header_filename[256] = { 0 };
 			
-			create_filename(header_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".h");
+			create_filename(header_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".h", NULL);
 			
 			m_header_file = fopen(header_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
 			
@@ -2960,7 +3045,7 @@ int main(int argc, char *argv[])
 		
 		exit(EXIT_SUCCESS);
 	}
-
+	
 	process_tiles();
 	
 	write_next_palette();
