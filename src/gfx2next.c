@@ -4,14 +4,12 @@
  * Credits:
  *
  *    Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
- *    Einar Saukas - ZX0
+ *    Einar Saukas - zx0
  *    Jim Bagley - NextGrab / MapGrabber
  *    Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
  *    Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
  *    Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
  *    Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
- *    fyrex^mhm - MegaLZ
- *    lvd^mhm - MegaLZ
  *
  * Supports the following ZX Spectrum Next formats:
  * 
@@ -36,10 +34,9 @@
 #include <math.h>
 #include <assert.h>
 #include "zx0.h"
-#include "megalz.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.3"
+#define VERSION						"1.0.4"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -89,10 +86,7 @@
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
 #define MAX(x,y)					((x) > (y) ? (x) : (y))
 
-#define IS_COMPRESSED				(m_args.zx0_mode > ZX0MODE_NONE || m_args.megalz_mode > MEGALZMODE_NONE)
-
 #define EXT_ZX0						".zx0"
-#define EXT_MEGALZ					".mlz"
 
 #define EXT_BIN						".bin"
 #define EXT_NXM						".nxm"
@@ -186,20 +180,6 @@ uint8_t m_screenAttribsInk[] =
 
 typedef enum
 {
-	ZX0MODE_NONE,
-	ZX0MODE_STANDARD,
-	ZX0MODE_BACKWARDS
-} zx0_mode_t;
-
-typedef enum
-{
-	MEGALZMODE_NONE,
-	MEGALZMODE_OPTIMAL,
-	MEGALZMODE_GREEDY
-} megalz_mode_t;
-
-typedef enum
-{
 	COLORMODE_DISTANCE,
 	COLORMODE_ROUND,
 	COLORMODE_FLOOR,
@@ -239,6 +219,19 @@ typedef enum
 	MATCH_MIRROR_X = (1 << 3)
 } match_t;
 
+typedef enum
+{
+	COMPRESS_NONE = 0,
+	COMPRESS_SCREEN = (1 << 0),
+	COMPRESS_BITMAP = (1 << 1),
+	COMPRESS_SPRITES = (1 << 2),
+	COMPRESS_TILES = (1 << 3),
+	COMPRESS_BLOCKS = (1 << 4),
+	COMPRESS_MAP = (1 << 5),
+	COMPRESS_PALETTE = (1 << 6),
+	COMPRESS_ALL = COMPRESS_SCREEN | COMPRESS_BITMAP | COMPRESS_SPRITES | COMPRESS_TILES | COMPRESS_BLOCKS | COMPRESS_MAP | COMPRESS_PALETTE
+} compress_t;
+
 typedef struct
 {
 	char *in_filename;
@@ -251,13 +244,13 @@ typedef struct
 	bool bitmap_y;
 	bool sprites;
 	char *tiles_file;
-	bool tile_repeat;
-	bool tile_rotate;
+	bool tile_norepeat;
+	bool tile_norotate;
 	bool tile_y;
 	bool tile_ldws;
 	char *tiled_file;
 	int tiled_blank;
-	bool block_repeat;
+	bool block_norepeat;
 	bool block_16bit;
 	bool map_none;
 	bool map_16bit;
@@ -269,9 +262,9 @@ typedef struct
 	pal_mode_t pal_mode;
 	bool pal_min;
 	bool pal_std;
-	zx0_mode_t zx0_mode;
+	bool zx0_back;
 	bool zx0_quick;
-	megalz_mode_t megalz_mode;
+	compress_t compress;
 	asm_mode_t asm_mode;
 	char *asm_file;
 	bool asm_start;
@@ -292,13 +285,13 @@ static arguments_t m_args  =
 	.bitmap_y = false,
 	.sprites = false,
 	.tiles_file = NULL,
-	.tile_repeat = false,
-	.tile_rotate = false,
+	.tile_norepeat = false,
+	.tile_norotate = false,
 	.tile_y = false,
 	.tile_ldws = false,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
-	.block_repeat = false,
+	.block_norepeat = false,
 	.block_16bit = false,
 	.map_none = false,
 	.map_16bit = false,
@@ -310,9 +303,9 @@ static arguments_t m_args  =
 	.pal_mode = PALMODE_EXTERNAL,
 	.pal_min = false,
 	.pal_std = false,
-	.zx0_mode = ZX0MODE_NONE,
+	.zx0_back = false,
 	.zx0_quick = false,
-	.megalz_mode = MEGALZMODE_NONE,
+	.compress = COMPRESS_NONE,
 	.asm_mode = ASMMODE_NONE,
 	.asm_file = NULL,
 	.asm_start = false,
@@ -774,60 +767,65 @@ static void print_usage(void)
 	printf("  gfx2next [options] <srcfile> [<dstfile>]\n");
 	printf("\n");
 	printf("Options:\n");
-	printf("  -debug                  Output additional debug information.\n");
-	printf("  -font                   Sets output to Next font format (.spr).\n");
-	printf("  -screen                 Sets output to Spectrum screen format (.scr).\n");
-	printf("  -screen-attribs         Remove color attributes.\n");
-	printf("  -bitmap                 Sets output to Next bitmap mode (.nxi).\n");
-	printf("  -bitmap-y               Get bitmap in Y order first. (Default is X order first).\n");
-	printf("  -sprites                Sets output to Next sprite mode (.spr).\n");
-	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format.\n");
-	printf("  -tile-size=XxY          Sets tile size to X x Y.\n");
-	printf("  -tile-repeat            Remove repeating tiles.\n");
-	printf("  -tile-rotate            Remove repeating, rotating and mirrored tiles.\n");
-	printf("  -tile-y                 Get tile in Y order first. (Default is X order first).\n");
-	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first).\n");
-	printf("  -tiled-file=<filename>  Load map from file in .tmx format.\n");
-	printf("  -tiled-blank=X          Set the tile id of the blank tile.\n");
-	printf("  -block-size=XxY         Sets blocks size to X x Y for blocks of tiles.\n");
-	printf("  -block-size=n           Sets blocks size to n bytes for blocks of tiles.\n");
-	printf("  -block-repeat           Remove repeating blocks.\n");
-	printf("  -block-16bit            Get blocks as 16 bit index for < 256 blocks.\n");
-	printf("  -map-none               Don't save a map file (e.g. if you're just adding to tiles).\n");
-	printf("  -map-16bit              Save map as 16 bit output.\n");
-	printf("  -map-y                  Save map in Y order first. (Default is X order first).\n");
-	printf("  -bank-8k                Splits up output file into multiple 8k files.\n");
-	printf("  -bank-16k               Splits up output file into multiple 16k files.\n");
-	printf("  -bank-48k               Splits up output file into multiple 48k files.\n");
-	printf("  -bank-size=XxY          Splits up output file into multiple X x Y files.\n");
-	printf("  -bank-sections=name,... Section names for asm files.\n");
-	printf("  -color-distance         Use the shortest distance between color values (default).\n");
-	printf("  -color-floor            Round down the color values to the nearest integer.\n");
-	printf("  -color-ceil             Round up the color values to the nearest integer.\n");
-	printf("  -color-round            Round the color values to the nearest integer.\n");
-	printf("  -colors-4bit            Use 4 bits per pixel (16 colors). Default is 8 bits per pixel (256 colors).\n");
-	printf("                          Get sprites or tiles as 16 colors, top 4 bits of 16 bit map is palette index.\n");
-	printf("  -pal-file=<filename>    Load palette from file in .nxp format.\n");
-	printf("  -pal-embed              The raw palette is prepended to the raw image file.\n");
-	printf("  -pal-ext                The raw palette is written to an external file (.nxp). This is the default.\n");
+	printf("  -debug                  Output additional debug information\n");
+	printf("  -font                   Sets output to Next font format (.spr)\n");
+	printf("  -screen                 Sets output to Spectrum screen format (.scr)\n");
+	printf("  -screen-noattribs       Remove color attributes\n");
+	printf("  -bitmap                 Sets output to Next bitmap mode (.nxi)\n");
+	printf("  -bitmap-y               Get bitmap in Y order first. (Default is X order first)\n");
+	printf("  -sprites                Sets output to Next sprite mode (.spr)\n");
+	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format\n");
+	printf("  -tile-size=XxY          Sets tile size to X x Y\n");
+	printf("  -tile-norepeat          Remove repeating tiles\n");
+	printf("  -tile-norotate          Remove repeating, rotating and mirrored tiles\n");
+	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
+	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
+	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
+	printf("  -tiled-blank=X          Set the tile id of the blank tile\n");
+	printf("  -block-size=XxY         Sets blocks size to X x Y for blocks of tiles\n");
+	printf("  -block-size=n           Sets blocks size to n bytes for blocks of tiles\n");
+	printf("  -block-norepeat         Remove repeating blocks\n");
+	printf("  -block-16bit            Get blocks as 16 bit index for < 256 blocks\n");
+	printf("  -map-none               Don't save a map file (e.g. if you're just adding to tiles)\n");
+	printf("  -map-16bit              Save map as 16 bit output\n");
+	printf("  -map-y                  Save map in Y order first. (Default is X order first)\n");
+	printf("  -bank-8k                Splits up output file into multiple 8k files\n");
+	printf("  -bank-16k               Splits up output file into multiple 16k files\n");
+	printf("  -bank-48k               Splits up output file into multiple 48k files\n");
+	printf("  -bank-size=XxY          Splits up output file into multiple X x Y files\n");
+	printf("  -bank-sections=name,... Section names for asm files\n");
+	printf("  -color-distance         Use the shortest distance between color values (default)\n");
+	printf("  -color-floor            Round down the color values to the nearest integer\n");
+	printf("  -color-ceil             Round up the color values to the nearest integer\n");
+	printf("  -color-round            Round the color values to the nearest integer\n");
+	printf("  -colors-4bit            Use 4 bits per pixel (16 colors). Default is 8 bits per pixel (256 colors)\n");
+	printf("                          Get sprites or tiles as 16 colors, top 4 bits of 16 bit map is palette index\n");
+	printf("  -pal-file=<filename>    Load palette from file in .nxp format\n");
+	printf("  -pal-embed              The raw palette is prepended to the raw image file\n");
+	printf("  -pal-ext                The raw palette is written to an external file (.nxp). This is the default\n");
 	printf("  -pal-min                If specified, minimize the palette by removing any duplicated colors, sort\n");
-	printf("                          it in ascending order, and clear any unused palette entries at the end.\n");
-	printf("                          This option is ignored if the -pal-std option is given.\n");
-	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors.\n");
-	printf("                          This option is ignored if the -colors-4bit option is given.\n");
-	printf("  -pal-none               No raw palette is created.\n");
-	printf("  -zx0                    Compress the image data using zx0.\n");
-	printf("  -zx0-back               Compress the image data using zx0 in reverse.\n");
-	printf("  -zx0-quick              Compress the image data using zx0 in quick mode.\n");
-	printf("  -megalz                 Compress the image data using MegaLZ optimal.\n");
-	printf("  -megalz-greedy          Compress the image data using MegaLZ greedy.\n");
-	printf("  -asm-z80asm             Generate header and asm binary include files (in Z80ASM format).\n");
-	printf("  -asm-sjasm              Generate asm binary incbin file (SjASM format).\n");
-	printf("  -asm-file=<name>        Append asm and header output to <name>.asm and <name>.h.\n");
-	printf("  -asm-start              Specifies the start of the asm and header data for appending.\n");
-	printf("  -asm-end                Specifies the end of the asm and header data for appending.\n");
-	printf("  -asm-sequence           Add sequence section for multi-bank spanning data.\n");
-	printf("  -preview                Generate png preview file(s).\n");
+	printf("                          it in ascending order, and clear any unused palette entries at the end\n");
+	printf("                          This option is ignored if the -pal-std option is given\n");
+	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors\n");
+	printf("                          This option is ignored if the -colors-4bit option is given\n");
+	printf("  -pal-none               No raw palette is created\n");
+	printf("  -zx0                    Compress all data using zx0\n");
+	printf("  -zx0-screen             Compress screen data using zx0\n");
+	printf("  -zx0-bitmap             Compress bitmap data using zx0\n");
+	printf("  -zx0-sprites            Compress sprite data using zx0\n");
+	printf("  -zx0-tiles              Compress tile data using zx0\n");
+	printf("  -zx0-blocks             Compress block data using zx0\n");
+	printf("  -zx0-map                Compress map data using zx0\n");
+	printf("  -zx0-palette            Compress palette data using zx0\n");
+	printf("  -zx0-back               Set zx0 to reverse compression mode\n");
+	printf("  -zx0-quick              Set zx0 to quick compression mode\n");
+	printf("  -asm-z80asm             Generate header and asm binary include files (in Z80ASM format)\n");
+	printf("  -asm-sjasm              Generate asm binary incbin file (SjASM format)\n");
+	printf("  -asm-file=<name>        Append asm and header output to <name>.asm and <name>.h\n");
+	printf("  -asm-start              Specifies the start of the asm and header data for appending\n");
+	printf("  -asm-end                Specifies the end of the asm and header data for appending\n");
+	printf("  -asm-sequence           Add sequence section for multi-bank spanning data\n");
+	printf("  -preview                Generate png preview file(s)\n");
 }
 
 static bool parse_args(int argc, char *argv[], arguments_t *args)
@@ -875,8 +873,8 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				m_tile_width = 16;
 				m_tile_height = 16;
 				m_tile_size = m_tile_width * m_tile_height;
-				m_args.tile_repeat = false;
-				m_args.tile_rotate = false;
+				m_args.tile_norepeat = false;
+				m_args.tile_norotate = false;
 				m_args.sprites = true;
 			}
 			else if (!strncmp(argv[i], "-tiles-file=", 12))
@@ -891,13 +889,13 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				
 				printf("Tile Size = %d x %d\n", m_tile_width, m_tile_height);
 			}
-			else if (!strcmp(argv[i], "-tile-repeat"))
+			else if (!strcmp(argv[i], "-tile-norepeat"))
 			{
-				m_args.tile_repeat = true;
+				m_args.tile_norepeat = true;
 			}
-			else if (!strcmp(argv[i], "-tile-rotate"))
+			else if (!strcmp(argv[i], "-tile-norotate"))
 			{
-				m_args.tile_rotate = true;
+				m_args.tile_norotate = true;
 			}
 			else if (!strcmp(argv[i], "-tile-y"))
 			{
@@ -925,9 +923,9 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				
 				printf("Block Size = %d x %d\n", m_block_width, m_block_height);
 			}
-			else if (!strcmp(argv[i], "-block-repeat"))
+			else if (!strcmp(argv[i], "-block-norepeat"))
 			{
-				m_args.block_repeat = true;
+				m_args.block_norepeat = true;
 			}
 			else if (!strcmp(argv[i], "-block-16bit"))
 			{
@@ -1039,24 +1037,43 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			}
 			else if (!strcmp(argv[i], "-zx0"))
 			{
-				m_args.zx0_mode = ZX0MODE_STANDARD;
+				m_args.compress = COMPRESS_ALL;
+			}
+			else if (!strcmp(argv[i], "-zx0-screen"))
+			{
+				m_args.compress |= COMPRESS_SCREEN;
+			}
+			else if (!strcmp(argv[i], "-zx0-bitmap"))
+			{
+				m_args.compress |= COMPRESS_BITMAP;
+			}
+			else if (!strcmp(argv[i], "-zx0-sprites"))
+			{
+				m_args.compress |= COMPRESS_SPRITES;
+			}
+			else if (!strcmp(argv[i], "-zx0-tiles"))
+			{
+				m_args.compress |= COMPRESS_TILES;
+			}
+			else if (!strcmp(argv[i], "-zx0-blocks"))
+			{
+				m_args.compress |= COMPRESS_BLOCKS;
+			}
+			else if (!strcmp(argv[i], "-zx0-map"))
+			{
+				m_args.compress |= COMPRESS_MAP;
+			}
+			else if (!strcmp(argv[i], "-zx0-palette"))
+			{
+				m_args.compress |= COMPRESS_PALETTE;
 			}
 			else if (!strcmp(argv[i], "-zx0-back"))
 			{
-				m_args.zx0_mode = ZX0MODE_BACKWARDS;
+				m_args.zx0_back = true;
 			}
 			else if (!strcmp(argv[i], "-zx0-quick"))
 			{
-				m_args.zx0_mode = (m_args.zx0_mode == ZX0MODE_NONE ? ZX0MODE_STANDARD : m_args.zx0_mode);
 				m_args.zx0_quick = true;
-			}
-			else if (!strcmp(argv[i], "-megalz"))
-			{
-				m_args.megalz_mode = MEGALZMODE_OPTIMAL;
-			}
-			else if (!strcmp(argv[i], "-megalz-greedy"))
-			{
-				m_args.megalz_mode = MEGALZMODE_GREEDY;
 			}
 			else if (!strcmp(argv[i], "-asm-z80asm") || !strcmp(argv[i], "-z80asm"))
 			{
@@ -1138,17 +1155,7 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 	return true;
 }
 
-static const char *get_compression_ext()
-{
-	if (m_args.zx0_mode > ZX0MODE_NONE)
-		return EXT_ZX0;
-	else if (m_args.megalz_mode > MEGALZMODE_NONE)
-		return EXT_MEGALZ;
-	
-	return NULL;
-}
-
-static void create_filename(char *out_filename, const char *in_filename, const char *extension, const char *compression_ext)
+static void create_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression)
 {
 	strcpy(out_filename, in_filename);
 
@@ -1157,11 +1164,11 @@ static void create_filename(char *out_filename, const char *in_filename, const c
 
 	strcpy(end, extension);
 	
-	if (compression_ext != NULL)
-		strcat(out_filename, compression_ext);
+	if (use_compression)
+		strcat(out_filename, EXT_ZX0);
 }
 
-static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, const char *compression_ext, int index)
+static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression, int index)
 {
 	strcpy(out_filename, in_filename);
 	
@@ -1170,8 +1177,8 @@ static void create_series_filename(char *out_filename, const char *in_filename, 
 
 	snprintf(out_filename, 255, "%s_%d%s", out_filename, index, extension);
 	
-	if (compression_ext != NULL)
-		strcat(out_filename, compression_ext);
+	if (use_compression)
+		strcat(out_filename, EXT_ZX0);
 }
 
 static void to_upper(char *filename)
@@ -1703,7 +1710,7 @@ static void write_asm_file(char *p_filename, uint32_t data_size)
 static void write_asm_sequence()
 {
 	char sequence_filename[256] = { 0 };
-	create_filename(sequence_filename, m_args.out_filename, "_sequence", NULL);
+	create_filename(sequence_filename, m_args.out_filename, "_sequence", false);
 	
 	if (m_args.asm_mode == ASMMODE_SJASM)
 	{
@@ -1754,7 +1761,7 @@ static void write_header_file(char *p_filename, bool type_16bit)
 static void write_header_header(char *p_filename)
 {
 	char header_filename[256] = { 0 };
-	create_filename(header_filename, p_filename, "_H", NULL);
+	create_filename(header_filename, p_filename, "_H", false);
 	
 	to_upper(header_filename);
 	alphanumeric_to_underscore(header_filename);
@@ -1771,7 +1778,7 @@ static void write_header_footer()
 static void write_header_sequence()
 {	
 	char header_filename[256] = { 0 };
-	create_filename(header_filename, m_args.out_filename, "_sequence", NULL);
+	create_filename(header_filename, m_args.out_filename, "_sequence", false);
 	
 	fprintf(m_header_file, "extern uint8_t *%s;\n", header_filename);
 }
@@ -1791,17 +1798,12 @@ static void read_file(char *p_filename, uint8_t *p_buffer, uint32_t buffer_size)
 	fclose(in_file);
 }
 
-static void write_file(FILE *p_file, char *p_filename, uint8_t *p_buffer, uint32_t buffer_size, bool type_16bit)
+static void write_file(FILE *p_file, char *p_filename, uint8_t *p_buffer, uint32_t buffer_size, bool type_16bit, bool use_compression)
 {
-	if (IS_COMPRESSED)
+	if (use_compression)
 	{
 		size_t compressed_size = 0;
-		uint8_t *compressed_buffer = NULL;
-		
-		if (m_args.zx0_mode > ZX0MODE_NONE)
-			compressed_buffer = zx0_compress(p_buffer, buffer_size, m_args.zx0_quick, m_args.zx0_mode == ZX0MODE_BACKWARDS, &compressed_size);
-		else
-			compressed_buffer = megalz_compress(p_buffer, buffer_size, m_args.megalz_mode, &compressed_size);
+		uint8_t *compressed_buffer = zx0_compress(p_buffer, buffer_size, m_args.zx0_quick, m_args.zx0_back, &compressed_size);
 
 		if (m_args.asm_mode > ASMMODE_NONE)
 		{
@@ -1848,13 +1850,13 @@ static void write_next_palette()
 
 	if (m_args.pal_mode == PALMODE_EMBEDDED)
 	{
-		write_file(m_bitmap_file, m_bitmap_filename, (uint8_t *)m_next_palette, next_palette_size, false);
+		write_file(m_bitmap_file, m_bitmap_filename, (uint8_t *)m_next_palette, next_palette_size, false, m_args.compress & COMPRESS_PALETTE);
 	}
 	else if (m_args.pal_mode == PALMODE_EXTERNAL)
 	{
 		char palette_filename[256] = { 0 };
 		
-		create_filename(palette_filename, m_bitmap_filename, EXT_NXP, get_compression_ext());
+		create_filename(palette_filename, m_bitmap_filename, EXT_NXP, m_args.compress & COMPRESS_PALETTE);
 		
 		FILE *palette_file = fopen(palette_filename, "wb");
 	
@@ -1863,7 +1865,7 @@ static void write_next_palette()
 			exit_with_msg("Can't create file %s.\n", palette_filename);
 		}
 	
-		write_file(palette_file, palette_filename, (uint8_t *)m_next_palette, next_palette_size, false);
+		write_file(palette_file, palette_filename, (uint8_t *)m_next_palette, next_palette_size, false, m_args.compress & COMPRESS_PALETTE);
 		
 		fclose(palette_file);
 	}
@@ -1871,11 +1873,11 @@ static void write_next_palette()
 
 static void write_next_bitmap_file(FILE *bitmap_file, char *bitmap_filename, uint8_t *next_image, uint32_t next_image_size)
 {
-	write_file(bitmap_file, bitmap_filename, next_image, next_image_size, false);
+	write_file(bitmap_file, bitmap_filename, next_image, next_image_size, false, m_args.compress & COMPRESS_BITMAP);
 	
 	if (m_args.preview)
 	{
-		create_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", NULL);
+		create_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", false);
 
 		write_png(m_bitmap_filename, m_next_image, m_image_width, m_image_height);
 	}
@@ -1918,7 +1920,7 @@ static uint8_t *get_bank(uint8_t *p_data, int bank_size)
 /* static void write_1bit()
 {
 	char onebit_filename[256] = { 0 };
-	create_filename(onebit_filename, m_args.out_filename, EXT_BIN, get_compression_ext());
+	create_filename(onebit_filename, m_args.out_filename, EXT_BIN, true);
 	FILE *p_file = fopen(onebit_filename, "wb");
 	
 	if (p_file == NULL)
@@ -1938,7 +1940,7 @@ static uint8_t *get_bank(uint8_t *p_data, int bank_size)
 		}
 	}
 	
-	write_file(p_file, onebit_filename, p_buffer, image_size, false);
+	write_file(p_file, onebit_filename, p_buffer, image_size, false, true);
 	
 	free(p_buffer);
 	fclose(p_file);
@@ -1947,7 +1949,7 @@ static uint8_t *get_bank(uint8_t *p_data, int bank_size)
 static void write_font()
 {
 	char font_filename[256] = { 0 };
-	create_filename(font_filename, m_args.out_filename, EXT_SPR, get_compression_ext());
+	create_filename(font_filename, m_args.out_filename, EXT_SPR, m_args.compress & COMPRESS_SPRITES);
 	FILE *p_file = fopen(font_filename, "wb");
 	
 	if (p_file == NULL)
@@ -1978,7 +1980,7 @@ static void write_font()
 		}
 	}
 	
-	write_file(p_file, font_filename, p_buffer, image_size, false);
+	write_file(p_file, font_filename, p_buffer, image_size, false, m_args.compress & COMPRESS_SPRITES);
 	
 	free(p_buffer);
 	fclose(p_file);
@@ -1987,7 +1989,7 @@ static void write_font()
 static void write_screen()
 {
 	char screen_filename[256] = { 0 };
-	create_filename(screen_filename, m_args.out_filename, EXT_SCR, get_compression_ext());
+	create_filename(screen_filename, m_args.out_filename, EXT_SCR, m_args.compress & COMPRESS_SCREEN);
 	FILE *p_file = fopen(screen_filename, "wb");
 	
 	if (p_file == NULL)
@@ -2121,7 +2123,7 @@ static void write_screen()
 	free(p_pixels);
 	free(p_attrib);
 	
-	write_file(p_file, screen_filename, p_buffer, total_size, false);
+	write_file(p_file, screen_filename, p_buffer, total_size, false, m_args.compress & COMPRESS_SCREEN);
 	
 	free(p_buffer);
 	fclose(p_file);
@@ -2139,7 +2141,7 @@ static void write_next_bitmap()
 		{
 			int bank_size = (size < m_bank_size ? size : m_bank_size);
 			
-			create_series_filename(m_bitmap_filename, m_args.out_filename, EXT_NXI, get_compression_ext(), m_bank_count);
+			create_series_filename(m_bitmap_filename, m_args.out_filename, EXT_NXI, m_args.compress & COMPRESS_BITMAP, m_bank_count);
 
 			if (m_args.asm_mode > ASMMODE_NONE)
 			{
@@ -2169,7 +2171,7 @@ static void write_next_bitmap()
 
 			if (m_args.preview)
 			{
-				create_series_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", NULL, m_bank_count);
+				create_series_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", false, m_bank_count);
 
 				write_png(m_bitmap_filename, p_image, m_bank_width, m_bank_height);
 				//write_png(m_bitmap_filename, p_image, m_bank_width, bank_size / m_bank_width);
@@ -2217,11 +2219,11 @@ static void write_tiles_sprites()
 			
 			if (m_args.sprites)
 			{
-				create_series_filename(out_filename, m_args.out_filename, EXT_SPR, get_compression_ext(), m_bank_count);
+				create_series_filename(out_filename, m_args.out_filename, EXT_SPR, m_args.compress & COMPRESS_SPRITES, m_bank_count);
 			}
 			else
 			{
-				create_series_filename(out_filename, m_args.out_filename, EXT_NXT, get_compression_ext(), m_bank_count);
+				create_series_filename(out_filename, m_args.out_filename, EXT_NXT, m_args.compress & COMPRESS_TILES, m_bank_count);
 			}
 			
 			if (m_args.asm_mode > ASMMODE_NONE)
@@ -2244,7 +2246,7 @@ static void write_tiles_sprites()
 
 			if (m_args.preview)
 			{
-				create_series_filename(out_filename, m_args.out_filename, "_preview.png", NULL, m_bank_count);
+				create_series_filename(out_filename, m_args.out_filename, "_preview.png", false, m_bank_count);
 
 				write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_bank_width, bank_size / m_bank_width);
 			}
@@ -2257,11 +2259,11 @@ static void write_tiles_sprites()
 	{
 		if (m_args.sprites)
 		{
-			create_filename(out_filename, m_args.out_filename, EXT_SPR, get_compression_ext());
+			create_filename(out_filename, m_args.out_filename, EXT_SPR, m_args.compress & COMPRESS_SPRITES);
 		}
 		else
 		{
-			create_filename(out_filename, m_args.out_filename, EXT_NXT, get_compression_ext());
+			create_filename(out_filename, m_args.out_filename, EXT_NXT, m_args.compress & COMPRESS_TILES);
 		}
 		
 		FILE *p_file = fopen(out_filename, "wb");
@@ -2293,7 +2295,7 @@ static void write_tiles_sprites()
 static void write_blocks()
 {
 	char block_filename[256] = { 0 };
-	create_filename(block_filename, m_args.out_filename, EXT_NXB, get_compression_ext());
+	create_filename(block_filename, m_args.out_filename, EXT_NXB, m_args.compress & COMPRESS_BLOCKS);
 	FILE *p_file = fopen(block_filename, "wb");
 	
 	if (p_file == NULL)
@@ -2321,7 +2323,7 @@ static void write_blocks()
 		}
 	}
 	
-	write_file(p_file, block_filename, p_buffer, block_size, false);
+	write_file(p_file, block_filename, p_buffer, block_size, false, m_args.compress & COMPRESS_BLOCKS);
 	
 	free(p_buffer);
 	fclose(p_file);
@@ -2330,7 +2332,7 @@ static void write_blocks()
 static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
 {
 	char map_filename[256] = { 0 };
-	create_filename(map_filename, m_args.out_filename, EXT_NXM, get_compression_ext());
+	create_filename(map_filename, m_args.out_filename, EXT_NXM, m_args.compress & COMPRESS_MAP);
 	FILE *p_file = fopen(map_filename, "wb");
 	
 	if (p_file == NULL)
@@ -2372,7 +2374,7 @@ static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile
 		}
 	}
 	
-	write_file(p_file, map_filename, p_buffer, map_size, m_args.map_16bit);
+	write_file(p_file, map_filename, p_buffer, map_size, m_args.map_16bit, m_args.compress & COMPRESS_MAP);
 	
 	free(p_buffer);
 	fclose(p_file);
@@ -2577,18 +2579,18 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 	uint32_t tile_index = m_tile_count;
 	match_t match = MATCH_NONE;
 	
-	if (m_args.tile_repeat || m_args.tile_rotate)
+	if (m_args.tile_norepeat || m_args.tile_norotate)
 	{
 		for (int i = 0; i < m_tile_count; i++)
 		{
-			match = (m_args.tile_rotate ? check_tile_rotate(i) : check_tile(i));
+			match = (m_args.tile_norotate ? check_tile_rotate(i) : check_tile(i));
 			
 			if (match != MATCH_NONE)
 			{
 				m_chunk_size = m_tile_size;
 				tile_index = i;
 				
-				if (m_args.tile_rotate)
+				if (m_args.tile_norotate)
 				{
 					*attributes |= (match & 0xe);
 				}
@@ -2631,7 +2633,7 @@ static int get_block(int tbx, int tby)
 	uint32_t block_index = m_block_count;
 	bool found = false;
 	
-	if (m_args.block_repeat)
+	if (m_args.block_norepeat)
 	{
 		for (int i = 0; i < m_block_count; i++)
 		{
@@ -2920,7 +2922,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create file names for raw image file and, if separate, raw palette file.
-	create_filename(m_bitmap_filename, m_args.out_filename != NULL ? m_args.out_filename : m_args.in_filename, EXT_NXI, get_compression_ext());
+	create_filename(m_bitmap_filename, m_args.out_filename != NULL ? m_args.out_filename : m_args.in_filename, EXT_NXI, m_args.compress & COMPRESS_BITMAP);
 	
 	if (!strcmp(m_args.in_filename, m_bitmap_filename))
 	{
@@ -2945,7 +2947,7 @@ int main(int argc, char *argv[])
 	{
 		char asm_filename[256] = { 0 };
 		
-		create_filename(asm_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".asm", NULL);
+		create_filename(asm_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".asm", false);
 		
 		m_asm_file = fopen(asm_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
 		
@@ -2963,7 +2965,7 @@ int main(int argc, char *argv[])
 		{
 			char header_filename[256] = { 0 };
 			
-			create_filename(header_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".h", NULL);
+			create_filename(header_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".h", false);
 			
 			m_header_file = fopen(header_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
 			
