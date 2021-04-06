@@ -36,7 +36,7 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.4"
+#define VERSION						"1.0.5"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -1871,9 +1871,9 @@ static void write_next_palette()
 	}
 }
 
-static void write_next_bitmap_file(FILE *bitmap_file, char *bitmap_filename, uint8_t *next_image, uint32_t next_image_size)
+static void write_next_bitmap_file(FILE *bitmap_file, char *bitmap_filename, uint8_t *next_image, uint32_t next_image_size, bool use_compression)
 {
-	write_file(bitmap_file, bitmap_filename, next_image, next_image_size, false, m_args.compress & COMPRESS_BITMAP);
+	write_file(bitmap_file, bitmap_filename, next_image, next_image_size, false, use_compression);
 	
 	if (m_args.preview)
 	{
@@ -2165,7 +2165,7 @@ static void write_next_bitmap()
 			else
 				p_image = get_bank(m_next_image + m_bank_count * m_bank_size, bank_size);
 			
-			write_next_bitmap_file(bitmap_file, m_bitmap_filename, p_image, bank_size);
+			write_next_bitmap_file(bitmap_file, m_bitmap_filename, p_image, bank_size, m_args.compress & COMPRESS_BITMAP);
 			
 			fclose(bitmap_file);
 
@@ -2184,7 +2184,7 @@ static void write_next_bitmap()
 	}
 	else
 	{
-		write_next_bitmap_file(m_bitmap_file, m_bitmap_filename, m_next_image, m_next_image_size);
+		write_next_bitmap_file(m_bitmap_file, m_bitmap_filename, m_next_image, m_next_image_size, m_args.compress & COMPRESS_BITMAP);
 	}
 	
 	if (m_args.asm_mode > ASMMODE_NONE)
@@ -2240,7 +2240,14 @@ static void write_tiles_sprites()
 				exit_with_msg("Can't create file %s.\n", out_filename);
 			}
 			
-			write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size);
+			if (m_args.sprites)
+			{
+				write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, m_args.compress & COMPRESS_SPRITES);
+			}
+			else
+			{
+				write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, m_args.compress & COMPRESS_TILES);
+			}
 			
 			fclose(p_file);
 
@@ -2273,7 +2280,14 @@ static void write_tiles_sprites()
 			exit_with_msg("Can't create file %s.\n", out_filename);
 		}
 
-		write_next_bitmap_file(p_file, out_filename, m_tiles, tile_size);
+		if (m_args.sprites)
+		{
+			write_next_bitmap_file(p_file, out_filename, m_tiles, tile_size, m_args.compress & COMPRESS_SPRITES);
+		}
+		else
+		{
+			write_next_bitmap_file(p_file, out_filename, m_tiles, tile_size, m_args.compress & COMPRESS_TILES);
+		}
 		
 		fclose(p_file);
 	}
