@@ -94,7 +94,7 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c
 ## Credits
 
 * Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
-* Einar Saukas - zx0
+* Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
 * Jim Bagley - NextGrab / MapGrabber
 * Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
 * Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)

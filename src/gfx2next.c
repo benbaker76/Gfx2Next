@@ -4,7 +4,7 @@
  * Credits:
  *
  *    Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
- *    Einar Saukas - zx0
+ *    Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
  *    Jim Bagley - NextGrab / MapGrabber
  *    Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
  *    Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
@@ -36,7 +36,7 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.5"
+#define VERSION						"1.0.6"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -216,7 +216,9 @@ typedef enum
 	MATCH_XY = (1 << 0),
 	MATCH_ROTATE = (1 << 1),
 	MATCH_MIRROR_Y = (1 << 2),
-	MATCH_MIRROR_X = (1 << 3)
+	MATCH_MIRROR_X = (1 << 3),
+	MATCH_MIRROR_XY = (1 << 4),
+	MATCH_ANY = MATCH_XY | MATCH_MIRROR_Y | MATCH_MIRROR_X | MATCH_MIRROR_XY
 } match_t;
 
 typedef enum
@@ -2421,7 +2423,8 @@ static match_t check_tile(int i)
 
 static match_t check_tile_rotate(int i)
 {
-	match_t match = MATCH_XY | MATCH_ROTATE | MATCH_MIRROR_Y | MATCH_MIRROR_X;
+	match_t match = MATCH_XY | MATCH_MIRROR_Y | MATCH_MIRROR_X | MATCH_MIRROR_XY;
+	match_t match_rot = MATCH_XY | MATCH_ROTATE | MATCH_MIRROR_Y | MATCH_MIRROR_X | MATCH_MIRROR_XY;
 	int tile_offset = i * m_tile_size;
 	
 	for (int y = 0; y < m_tile_height; y++)
@@ -2434,12 +2437,15 @@ static match_t check_tile_rotate(int i)
 			int offset_x_r = y * m_tile_width + x_r;
 			int offset_y_r = y_r * m_tile_width + x;
 			int offset_xy_r = y_r * m_tile_width + x_r;
+			int offset_rot = x * m_tile_height + y_r;
 			int ti = tile_offset + offset;
 			int ti_x_r = tile_offset + offset_x_r;
 			int ti_y_r = tile_offset + offset_y_r;
 			int ti_xy_r = tile_offset + offset_xy_r;
 			int index = m_tile_count * m_tile_size + offset;
-			uint8_t px, px_x_r, px_y_r, px_xy_r, px_other;
+			int index_rot = m_tile_count * m_tile_size + offset_rot;
+			
+			uint8_t px, px_x_r, px_y_r, px_xy_r, px_other, px_other_rot;
 			
 			if (m_args.colors_4bit)
 			{
@@ -2448,6 +2454,7 @@ static match_t check_tile_rotate(int i)
 				px_y_r = (x & 1 ? m_tiles[ti_y_r >> 1] & 0xf : m_tiles[ti_y_r >> 1] >> 4);
 				px_xy_r = (x_r & 1 ? m_tiles[ti_xy_r >> 1] & 0xf : m_tiles[ti_xy_r >> 1] >> 4);
 				px_other = (x & 1 ? m_tiles[index >> 1] & 0xf : m_tiles[index >> 1] >> 4);
+				px_other_rot = (y_r & 1 ? m_tiles[index_rot >> 1]  & 0xf : m_tiles[index_rot >> 1] >> 4);
 			}
 			else
 			{
@@ -2456,16 +2463,12 @@ static match_t check_tile_rotate(int i)
 				px_y_r = m_tiles[ti_y_r];
 				px_xy_r = m_tiles[ti_xy_r];
 				px_other = m_tiles[index];
+				px_other_rot = m_tiles[index_rot];
 			}
 			
 			if (px != px_other)
 			{
 				match &= ~MATCH_XY;
-			}
-			
-			if (px_xy_r != px_other)
-			{
-				match &= ~MATCH_ROTATE;
 			}
 			
 			if (px_y_r != px_other)
@@ -2477,7 +2480,46 @@ static match_t check_tile_rotate(int i)
 			{
 				match &= ~MATCH_MIRROR_X;
 			}
+			
+			if (px_xy_r != px_other)
+			{
+				match &= ~MATCH_MIRROR_XY;
+			}
+			
+			if (px != px_other_rot)
+			{
+				match_rot &= ~MATCH_XY;
+			}
+			
+			if (px_y_r != px_other_rot)
+			{
+				match_rot &= ~MATCH_MIRROR_X;
+			}
+			
+			if (px_x_r != px_other_rot)
+			{
+				match_rot &= ~MATCH_MIRROR_Y;
+			}
+			
+			if (px_xy_r != px_other_rot)
+			{
+				match_rot &= ~MATCH_MIRROR_XY;
+			}
 		}
+	}
+	
+	if (!(match & MATCH_ANY))
+	{
+		if (match_rot & MATCH_ANY)
+		{
+			match = match_rot;
+		}
+	}
+	
+	if (match & MATCH_MIRROR_XY)
+	{
+		match &= ~MATCH_MIRROR_XY;
+		match |= MATCH_MIRROR_X | MATCH_MIRROR_Y;
 	}
 	
 	return match;
