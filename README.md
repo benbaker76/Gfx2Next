@@ -59,6 +59,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-pal-embed|The raw palette is prepended to the raw image file|
 |-pal-ext|The raw palette is written to an external file (.nxp). This is the default|
 |-pal-min|If specified, minimize the palette by removing any duplicated colors, sort it in ascending order, and clear any unused palette entries at the end. This option is ignored if the -pal-std option is given|
+|-pal-full|Generate the full palette for -colors-4bit mode|
 |-pal-std|If specified, convert to the Spectrum Next standard palette colors. This option is ignored if the -colors-4bit option is given|
 |-pal-none|No raw palette is created|
 |-zx0|Compress all data using zx0|
