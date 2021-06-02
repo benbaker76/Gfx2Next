@@ -36,7 +36,7 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.6"
+#define VERSION						"1.0.7"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -263,6 +263,7 @@ typedef struct
 	char *pal_file;
 	pal_mode_t pal_mode;
 	bool pal_min;
+	bool pal_full;
 	bool pal_std;
 	bool zx0_back;
 	bool zx0_quick;
@@ -304,6 +305,7 @@ static arguments_t m_args  =
 	.pal_file = NULL,
 	.pal_mode = PALMODE_EXTERNAL,
 	.pal_min = false,
+	.pal_full = false,
 	.pal_std = false,
 	.zx0_back = false,
 	.zx0_quick = false,
@@ -659,7 +661,7 @@ static void create_next_palette(color_mode_t color_mode)
 	// Create the next palette.
 	// The RGB888 colors in the BMP palette are converted to RGB333 colors,
 	// which are then split in RGB332 and B1 parts.
-	uint32_t palette_count = m_args.colors_4bit ? 16 : 256;
+	uint32_t palette_count = m_args.colors_4bit && !m_args.pal_full ? 16 : 256;
 	for (int i = 0; i < palette_count; i++)
 	{
 		// Palette contains ARGB colors.
@@ -808,6 +810,7 @@ static void print_usage(void)
 	printf("  -pal-min                If specified, minimize the palette by removing any duplicated colors, sort\n");
 	printf("                          it in ascending order, and clear any unused palette entries at the end\n");
 	printf("                          This option is ignored if the -pal-std option is given\n");
+	printf("  -pal-full               Generate the full palette for -colors-4bit mode\n");
 	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors\n");
 	printf("                          This option is ignored if the -colors-4bit option is given\n");
 	printf("  -pal-none               No raw palette is created\n");
@@ -1032,6 +1035,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-pal-std"))
 			{
 				m_args.pal_std = true;
+			}
+			else if (!strcmp(argv[i], "-pal-full"))
+			{
+				m_args.pal_full = true;
 			}
 			else if (!strcmp(argv[i], "-pal-none"))
 			{
@@ -1424,11 +1431,12 @@ static void write_png(const char *in_filename, uint8_t *p_image, int width, int 
 	unsigned error;
 	unsigned char *image = NULL;
 	size_t outsize;
+	bool is_4bit = m_args.bitmap && m_args.colors_4bit && !m_args.pal_full;
 	LodePNGState state;
 	
 	lodepng_state_init(&state);
 	
-	uint32_t num_palette_colors = (m_args.bitmap && m_args.colors_4bit ? 16 : 256);
+	uint32_t num_palette_colors = (is_4bit ? 16 : 256);
 	
 	for (int i = 0; i < num_palette_colors; i++)
 	{
@@ -1442,9 +1450,9 @@ static void write_png(const char *in_filename, uint8_t *p_image, int width, int 
 	}
 	
 	state.info_png.color.colortype = LCT_PALETTE;
-	state.info_png.color.bitdepth = (m_args.bitmap && m_args.colors_4bit ? 4 : 8);
+	state.info_png.color.bitdepth = (is_4bit ? 4 : 8);
 	state.info_raw.colortype = LCT_PALETTE;
-	state.info_raw.bitdepth = (m_args.bitmap && m_args.colors_4bit ? 4 : 8);
+	state.info_raw.bitdepth = (is_4bit ? 4 : 8);
 	state.encoder.auto_convert = 0;
 	
 	error = lodepng_encode(&image, &outsize, p_image, width, height, &state);
@@ -1848,7 +1856,7 @@ static void write_file(FILE *p_file, char *p_filename, uint8_t *p_buffer, uint32
 static void write_next_palette()
 {
 	// Write the raw palette either prepended to the raw image file or as a separate file.
-	uint32_t next_palette_size = m_args.colors_4bit ? NEXT_4BIT_PALETTE_SIZE : NEXT_PALETTE_SIZE;
+	uint32_t next_palette_size = m_args.colors_4bit && !m_args.pal_full ? NEXT_4BIT_PALETTE_SIZE : NEXT_PALETTE_SIZE;
 
 	if (m_args.pal_mode == PALMODE_EMBEDDED)
 	{
