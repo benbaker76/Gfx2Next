@@ -2438,7 +2438,7 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	
 	uint32_t map_width = image_width / (tile_width * block_width);
 	uint32_t map_height = image_height / (tile_height * block_height);
-	uint32_t map_mask = m_args.map_16bit ? 0x1FF : 0xFF;
+	uint16_t map_mask = m_args.map_16bit ? 0x1ff : 0xff;
 	uint32_t first_gid = 1;
 	
 	fprintf(p_tmx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -2453,14 +2453,14 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 		{
 			for (int y = 0; y < map_height; y++)
 			{
-				uint16_t data = m_map[y * map_width + x] + first_gid;
-				uint8_t tiled_flags = attributes_to_tiled_flags(data >> 8);
-				uint32_t tiled_value = (data & map_mask) | (tiled_flags << 28);
+				uint16_t tile_id = m_map[y * map_width + x];
+				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
+				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
 				
 				if (x == map_width-1 && y == map_height-1)
-					fprintf(p_tmx_file, "%u", tiled_value);
+					fprintf(p_tmx_file, "%u", tile_value);
 				else
-					fprintf(p_tmx_file, "%u,", tiled_value);
+					fprintf(p_tmx_file, "%u,", tile_value);
 			}
 			fprintf(p_tmx_file, "\n");
 		}
@@ -2471,14 +2471,14 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 		{
 			for (int x = 0; x < map_width; x++)
 			{
-				uint16_t data = m_map[y * map_width + x] + first_gid;
-				uint8_t tiled_flags = attributes_to_tiled_flags(data >> 8);
-				uint32_t tiled_value = (data & map_mask) | (tiled_flags << 28);
+				uint16_t tile_id = m_map[y * map_width + x];
+				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
+				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
 				
 				if (x == map_width-1 && y == map_height-1)
-					fprintf(p_tmx_file, "%u", tiled_value);
+					fprintf(p_tmx_file, "%u", tile_value);
 				else
-					fprintf(p_tmx_file, "%u,", tiled_value);
+					fprintf(p_tmx_file, "%u,", tile_value);
 			}
 			fprintf(p_tmx_file, "\n");
 		}
@@ -2490,20 +2490,24 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 
 	fclose(p_tmx_file);
 	
-	uint32_t data_size = m_tile_count * m_tile_size;
-	uint32_t bitmap_width = MIN(m_args.tiled_width, m_tile_count * tile_width);
-	uint32_t bitmap_height = (int)ceil((double)(data_size / bitmap_width) / tile_height) * tile_height;
+	uint32_t tile_count = MIN(m_tile_count, m_args.map_16bit ? 511 : 255);
+	uint32_t data_size = tile_count * m_tile_size;
+	uint32_t bitmap_width = MIN(m_args.tiled_width, tile_count * tile_width);
+	uint32_t bitmap_height = (uint32_t)ceil((double)data_size / bitmap_width / tile_height) * tile_height;
+	uint32_t bitmap_size = bitmap_width * bitmap_height;
 	uint32_t tile_cols = bitmap_width / tile_width;
 	
-	uint8_t *p_image = malloc(bitmap_width * bitmap_height);
-
-	for (int t = 0; t < m_tile_count; t++)
+	uint8_t *p_image = malloc(bitmap_size);
+	
+	memset(p_image, 0, bitmap_size);
+	
+	for (int t = 0; t < tile_count; t++)
 	{
 		uint32_t tile_x = t % tile_cols;
 		uint32_t tile_y = t / tile_cols;
 		uint32_t src_offset = t * m_tile_size;
 		uint32_t dst_offset = tile_y * bitmap_width * tile_height + tile_x * tile_width;
-
+		
 		for (int y = 0; y < tile_height; y++)
 		{
 			for (int x = 0; x < tile_width; x++)
@@ -2534,7 +2538,7 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	free(p_image);
 	
 	fprintf(p_tsx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-	fprintf(p_tsx_file, "<tileset version=\"1.4\" tiledversion=\"1.4.1\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", name, tile_width, tile_height, m_tile_count, bitmap_width / tile_width);
+	fprintf(p_tsx_file, "<tileset version=\"1.4\" tiledversion=\"1.4.1\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", name, tile_width, tile_height, tile_count, bitmap_width / tile_width);
 	fprintf(p_tsx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
 	fprintf(p_tsx_file, "</tileset>\n");
 	
@@ -2996,8 +3000,9 @@ static void process_tiles()
 					{
 						uint8_t attributes = 0;
 						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
+						uint16_t map_mask = (m_args.map_16bit ? 0x1ff : 0xff);
 						
-						m_map[x * (m_image_height / m_tile_height) + y] = (ti & 0x1FF) | (attributes << 8);
+						m_map[x * (m_image_height / m_tile_height) + y] = (ti & map_mask) | (attributes << 8);
 					}
 					else
 					{
@@ -3017,8 +3022,9 @@ static void process_tiles()
 					{
 						uint8_t attributes = 0;
 						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
+						uint16_t map_mask = (m_args.map_16bit ? 0x1ff : 0xff);
 						
-						m_map[y * (m_image_width / m_tile_width) + x] = (ti & 0x1FF) | (attributes << 8);
+						m_map[y * (m_image_width / m_tile_width) + x] = (ti & map_mask) | (attributes << 8);
 					}
 					else
 					{
@@ -3028,6 +3034,17 @@ static void process_tiles()
 				}
 			}
 		}
+	}
+	
+	if (m_args.map_16bit)
+	{
+		if (m_tile_count >= 512)
+			printf("Warning tile count >= 512!\n");
+	}
+	else
+	{
+		if (m_tile_count >= 256)
+			printf("Warning tile count >= 256!\n");
 	}
 }
 
