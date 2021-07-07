@@ -36,7 +36,7 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.7"
+#define VERSION						"1.0.8"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -77,6 +77,12 @@
 #define COLOR_YELLOW_BRIGHT			0xFFFF00
 #define COLOR_WHITE_BRIGHT			0xFFFFFF
 
+#define TILED_DIAG					(1 << 1)
+#define TILED_VERT					(1 << 2)
+#define TILED_HORIZ					(1 << 3)
+#define TILED_HORIZ_VERT			(TILED_HORIZ | TILED_VERT)
+#define TILED_TILEID_MASK			0x1FFFFFFF
+
 #define DBL_MAX						1.7976931348623158e+308
 
 #define RGB888(r8,g8,b8)			((r8 << 16) | (g8 << 8) | b8)
@@ -96,8 +102,11 @@
 #define EXT_NXB						".nxb"
 #define EXT_NXI						".nxi"
 #define EXT_SCR						".scr"
+#define EXT_TMX						".tmx"
+#define EXT_TSX						".tsx"
 
 static void write_easter_egg();
+static uint8_t attributes_to_tiled_flags(uint8_t attributes);
 
 unsigned char m_gf[] =
 {
@@ -206,8 +215,7 @@ typedef enum
 	BANKSIZE_8K,
 	BANKSIZE_16K,
 	BANKSIZE_48K,
-	BANKSIZE_CUSTOM,
-	BANKSIZE_XY
+	BANKSIZE_CUSTOM
 } bank_size_t;
 
 typedef enum
@@ -252,6 +260,8 @@ typedef struct
 	bool tile_ldws;
 	char *tiled_file;
 	int tiled_blank;
+	bool tiled_output;
+	int tiled_width;
 	bool block_norepeat;
 	bool block_16bit;
 	bool map_none;
@@ -294,6 +304,8 @@ static arguments_t m_args  =
 	.tile_ldws = false,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
+	.tiled_output = false,
+	.tiled_width = 256,
 	.block_norepeat = false,
 	.block_16bit = false,
 	.map_none = false,
@@ -343,14 +355,15 @@ static uint32_t m_next_image_size = 0;
 static uint32_t m_padded_image_width = 0;
 static bool m_bottom_to_top_image = false;
 
-static uint32_t m_bank_width = 256;
-static uint32_t m_bank_height = 64;
 static uint32_t m_bank_size = 0;
 static uint32_t m_bank_count = 0;
 
 static char m_bank_sections[MAX_BANK_SECTION_COUNT][256] = { { 0 } };
 static uint32_t m_bank_section_index = 0;
 static uint32_t m_bank_section_count = 0;
+
+static uint32_t m_bitmap_width = 0;
+static uint32_t m_bitmap_height = 0;
 
 static uint32_t m_tile_width = 8;
 static uint32_t m_tile_height = 8;
@@ -777,6 +790,7 @@ static void print_usage(void)
 	printf("  -screen-noattribs       Remove color attributes\n");
 	printf("  -bitmap                 Sets output to Next bitmap mode (.nxi)\n");
 	printf("  -bitmap-y               Get bitmap in Y order first. (Default is X order first)\n");
+	printf("  -bitmap-size=XxY        Splits up the bitmap output file into X x Y sections\n");
 	printf("  -sprites                Sets output to Next sprite mode (.spr)\n");
 	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format\n");
 	printf("  -tile-size=XxY          Sets tile size to X x Y\n");
@@ -785,7 +799,9 @@ static void print_usage(void)
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
-	printf("  -tiled-blank=X          Set the tile id of the blank tile\n");
+	printf("  -tiled-blank=n          Set the tile id of the blank tile\n");
+	printf("  -tiled-output           Outputs tile and map data to Tiled .tmx and .tsx format\n");
+	printf("  -tiled-width=n          Sets Tiled tileset width output in pixels (default is 256)\n");
 	printf("  -block-size=XxY         Sets blocks size to X x Y for blocks of tiles\n");
 	printf("  -block-size=n           Sets blocks size to n bytes for blocks of tiles\n");
 	printf("  -block-norepeat         Remove repeating blocks\n");
@@ -796,7 +812,6 @@ static void print_usage(void)
 	printf("  -bank-8k                Splits up output file into multiple 8k files\n");
 	printf("  -bank-16k               Splits up output file into multiple 16k files\n");
 	printf("  -bank-48k               Splits up output file into multiple 48k files\n");
-	printf("  -bank-size=XxY          Splits up output file into multiple X x Y files\n");
 	printf("  -bank-sections=name,... Section names for asm files\n");
 	printf("  -color-distance         Use the shortest distance between color values (default)\n");
 	printf("  -color-floor            Round down the color values to the nearest integer\n");
@@ -872,6 +887,13 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.bitmap_y = true;
 			}
+			else if (!strncmp(argv[i], "-bitmap-size=", 13))
+			{
+				m_bitmap_width = atoi(strtok(&argv[i][13], "x"));
+				m_bitmap_height = atoi(strtok(NULL, "x"));
+				
+				printf("Bitmap Size = %d x %d\n", m_bitmap_width, m_bitmap_height);
+			}
 			else if (!strcmp(argv[i], "-sprites"))
 			{
 				m_args.map_none = true;
@@ -919,6 +941,16 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				m_args.tiled_blank = atoi(&argv[i][13]);
 
 				printf("Tiled Blank = %d\n", m_args.tiled_blank);
+			}
+			else if (!strcmp(argv[i], "-tiled-output"))
+			{
+				m_args.tiled_output = true;
+			}
+			else if (!strncmp(argv[i], "-tiled-width=", 13))
+			{
+				m_args.tiled_width = atoi(&argv[i][13]);
+
+				printf("Tiled Width = %d\n", m_args.tiled_width);
 			}
 			else if (!strncmp(argv[i], "-block-size=", 12))
 			{
@@ -968,20 +1000,9 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			}
 			else if (!strncmp(argv[i], "-bank-size=", 11))
 			{
-				if (strstr(&argv[i][11], "x"))
-				{
-					m_args.bank_size = BANKSIZE_XY;
-					m_bank_width = atoi(strtok(&argv[i][11], "x"));
-					m_bank_height = atoi(strtok(NULL, "x"));
-					m_bank_size = m_bank_width * m_bank_height;
-					printf("Bank Size = %d x %d = %d\n", m_bank_width, m_bank_height, m_bank_size);
-				}
-				else
-				{
-					m_args.bank_size = BANKSIZE_CUSTOM;
-					m_bank_size = atoi(&argv[i][11]);
-					printf("Bank Size = %d\n", m_bank_size);
-				}
+				m_args.bank_size = BANKSIZE_CUSTOM;
+				m_bank_size = atoi(&argv[i][11]);
+				printf("Bank Size = %d\n", m_bank_size);
 			}
 			else if (!strncmp(argv[i], "-bank-sections=", 15))
 			{
@@ -1162,6 +1183,16 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 	}
 
 	return true;
+}
+
+static void create_name(char *out_name, const char *in_filename)
+{
+	strcpy(out_name, in_filename);
+
+	char *end = strchr(out_name, '.');
+	end = (end == NULL ? out_name + strlen(out_name) : end);
+	
+	strcpy(end, "");
 }
 
 static void create_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression)
@@ -1426,12 +1457,11 @@ static void read_png()
 	free(image);
 }
 
-static void write_png(const char *in_filename, uint8_t *p_image, int width, int height)
+static void write_png_bits(const char *in_filename, uint8_t *p_image, int width, int height, bool is_4bit)
 {
 	unsigned error;
 	unsigned char *image = NULL;
 	size_t outsize;
-	bool is_4bit = m_args.bitmap && m_args.colors_4bit && !m_args.pal_full;
 	LodePNGState state;
 	
 	lodepng_state_init(&state);
@@ -1471,6 +1501,11 @@ static void write_png(const char *in_filename, uint8_t *p_image, int width, int 
 	
 	lodepng_state_cleanup(&state);
 	free(image);
+}
+
+static void write_png(const char *in_filename, uint8_t *p_image, int width, int height)
+{
+	write_png_bits(in_filename, p_image, width, height, m_args.bitmap && m_args.colors_4bit && !m_args.pal_full);
 }
 
 static void process_palette()
@@ -1893,6 +1928,44 @@ static void write_next_bitmap_file(FILE *bitmap_file, char *bitmap_filename, uin
 	}
 }
 
+static uint8_t *get_bitmap_width_height(uint8_t *p_data, int bank_index, int bitmap_width, int bitmap_height, int *bank_size)
+{
+	static uint8_t bank[0xFFFF];
+	int bank_width = bitmap_width;
+	int bank_height = m_bank_size / bitmap_width;
+	int rows = ceil((float)m_image_height / bank_height);
+	int offset_x = (bank_index / rows) * bank_width;
+	int offset_y = (bank_index % rows) * bank_height;
+	int bank_count = 0;
+
+	memset(bank, 0, sizeof(bank));
+
+	for (int i = 0; i < m_bank_size; i++)
+	{
+		int x = i / bank_height;
+		int y = i % bank_height;
+		int image_x = offset_x + x;
+		int image_y = offset_y + y;
+		int image_offset = image_x + image_y * m_image_width;
+		int bank_offset = y * bank_width + x;
+		
+		if (image_x >= m_image_width || image_y >= m_image_height)
+			continue;
+
+		if (image_offset < m_image_size)
+			bank[bank_offset] = p_data[image_offset];
+		
+		bank_count++;
+	}
+	
+	if (bank_count > 0)
+	{
+		*bank_size = bank_count;
+	}
+
+	return bank;
+}
+
 static uint8_t *get_bank_width_height(uint8_t *p_data, int bank_index, int bank_width, int bank_height, int bank_size, int *bank_x)
 {
 	static uint8_t bank[0xFFFF];
@@ -2144,7 +2217,7 @@ static void write_next_bitmap()
 	if (m_args.bank_size > BANKSIZE_NONE)
 	{
 		int size = m_next_image_size;
-
+		
 		m_bank_count = 0;
 		
 		while (size > 0)
@@ -2167,11 +2240,10 @@ static void write_next_bitmap()
 				exit_with_msg("Can't create file %s.\n", m_bitmap_filename);
 			}
 			
-			int bank_x;
 			uint8_t *p_image = NULL;
 			
-			if (m_args.bank_size == BANKSIZE_XY)
-				p_image = get_bank_width_height(m_next_image, m_bank_count, m_bank_width, m_bank_height, bank_size, &bank_x);
+			if (m_bitmap_width != 0 && m_bitmap_height != 0)
+				p_image = get_bitmap_width_height(m_next_image, m_bank_count, m_bitmap_width, m_bitmap_height, &bank_size);
 			else
 				p_image = get_bank(m_next_image + m_bank_count * m_bank_size, bank_size);
 			
@@ -2183,11 +2255,12 @@ static void write_next_bitmap()
 			{
 				create_series_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", false, m_bank_count);
 
-				write_png(m_bitmap_filename, p_image, m_bank_width, m_bank_height);
-				//write_png(m_bitmap_filename, p_image, m_bank_width, bank_size / m_bank_width);
-				//write_png(m_bitmap_filename, p_image, bank_x, bank_size / bank_x);
+				if (m_bitmap_width != 0 && m_bitmap_height != 0)
+					write_png(m_bitmap_filename, p_image, m_bitmap_width, m_bitmap_height);
+				else
+					write_png(m_bitmap_filename, p_image, m_image_width, bank_size / m_image_width);
 			}
-
+			
 			size -= bank_size;
 			m_bank_count++;
 		}
@@ -2265,7 +2338,7 @@ static void write_tiles_sprites()
 			{
 				create_series_filename(out_filename, m_args.out_filename, "_preview.png", false, m_bank_count);
 
-				write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_bank_width, bank_size / m_bank_width);
+				write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_image_width, bank_size / m_image_width);
 			}
 			
 			m_bank_count++;
@@ -2353,6 +2426,121 @@ static void write_blocks()
 	fclose(p_file);
 }
 
+static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
+{
+	char name[256] = { 0 }, png_filename[256] = { 0 }, tmx_filename[256] = { 0 }, tsx_filename[256] = { 0 };
+	create_name(name, m_args.out_filename);
+	create_filename(png_filename, m_args.out_filename, "_tileset.png", false);
+	create_filename(tmx_filename, m_args.out_filename, EXT_TMX, false);
+	create_filename(tsx_filename, m_args.out_filename, EXT_TSX, false);
+	FILE *p_tmx_file = fopen(tmx_filename, "w");
+	FILE *p_tsx_file = fopen(tsx_filename, "w");
+	
+	uint32_t map_width = image_width / (tile_width * block_width);
+	uint32_t map_height = image_height / (tile_height * block_height);
+	uint32_t map_mask = m_args.map_16bit ? 0x1FF : 0xFF;
+	uint32_t first_gid = 1;
+	
+	fprintf(p_tmx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	fprintf(p_tmx_file, "<map version=\"1.5\" tiledversion=\"1.7.0\" orientation=\"orthogonal\" renderorder=\"right-down\" width=\"%d\" height=\"%d\" tilewidth=\"%d\" tileheight=\"%d\" infinite=\"0\" nextlayerid=\"2\" nextobjectid=\"1\">\n", map_width, map_height, tile_width, tile_height);
+	fprintf(p_tmx_file, " <tileset firstgid=\"%d\" source=\"%s\"/>\n", first_gid, tsx_filename);
+	fprintf(p_tmx_file, " <layer id=\"1\" name=\"Tile Layer 1\" width=\"%d\" height=\"%d\">\n", map_width, map_height);
+	fprintf(p_tmx_file, "  <data encoding=\"csv\">\n");
+
+	if (m_args.map_y)
+	{
+		for (int x = 0; x < map_width; x++)
+		{
+			for (int y = 0; y < map_height; y++)
+			{
+				uint16_t data = m_map[y * map_width + x] + first_gid;
+				uint8_t tiled_flags = attributes_to_tiled_flags(data >> 8);
+				uint32_t tiled_value = (data & map_mask) | (tiled_flags << 28);
+				
+				if (x == map_width-1 && y == map_height-1)
+					fprintf(p_tmx_file, "%u", tiled_value);
+				else
+					fprintf(p_tmx_file, "%u,", tiled_value);
+			}
+			fprintf(p_tmx_file, "\n");
+		}
+	}
+	else
+	{
+		for (int y = 0; y < map_height; y++)
+		{
+			for (int x = 0; x < map_width; x++)
+			{
+				uint16_t data = m_map[y * map_width + x] + first_gid;
+				uint8_t tiled_flags = attributes_to_tiled_flags(data >> 8);
+				uint32_t tiled_value = (data & map_mask) | (tiled_flags << 28);
+				
+				if (x == map_width-1 && y == map_height-1)
+					fprintf(p_tmx_file, "%u", tiled_value);
+				else
+					fprintf(p_tmx_file, "%u,", tiled_value);
+			}
+			fprintf(p_tmx_file, "\n");
+		}
+	}
+	
+	fprintf(p_tmx_file, "</data>\n");
+	fprintf(p_tmx_file, " </layer>\n");
+	fprintf(p_tmx_file, "</map>\n");
+
+	fclose(p_tmx_file);
+	
+	uint32_t data_size = m_tile_count * m_tile_size;
+	uint32_t bitmap_width = MIN(m_args.tiled_width, m_tile_count * tile_width);
+	uint32_t bitmap_height = (int)ceil((double)(data_size / bitmap_width) / tile_height) * tile_height;
+	uint32_t tile_cols = bitmap_width / tile_width;
+	
+	uint8_t *p_image = malloc(bitmap_width * bitmap_height);
+
+	for (int t = 0; t < m_tile_count; t++)
+	{
+		uint32_t tile_x = t % tile_cols;
+		uint32_t tile_y = t / tile_cols;
+		uint32_t src_offset = t * m_tile_size;
+		uint32_t dst_offset = tile_y * bitmap_width * tile_height + tile_x * tile_width;
+
+		for (int y = 0; y < tile_height; y++)
+		{
+			for (int x = 0; x < tile_width; x++)
+			{
+				uint32_t src_index = src_offset + y * tile_width + x;
+				uint32_t dst_index = dst_offset + y * bitmap_width + x;
+
+				if (m_args.colors_4bit)
+					src_index >>= 1;
+
+				if (m_args.colors_4bit)
+				{
+					if ((x & 1) == 0)
+						p_image[dst_index] = m_tiles[src_index] >> 4;
+					else
+						p_image[dst_index] = m_tiles[src_index] & 0xf;
+				}
+				else
+				{
+					p_image[dst_index] = m_tiles[src_index];
+				}
+			}
+		}
+	}
+	
+	write_png_bits(png_filename, p_image, bitmap_width, bitmap_height, false);
+	
+	free(p_image);
+	
+	fprintf(p_tsx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	fprintf(p_tsx_file, "<tileset version=\"1.4\" tiledversion=\"1.4.1\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", name, tile_width, tile_height, m_tile_count, bitmap_width / tile_width);
+	fprintf(p_tsx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
+	fprintf(p_tsx_file, "</tileset>\n");
+	
+	fclose(p_tsx_file);
+}
+
 static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
 {
 	char map_filename[256] = { 0 };
@@ -2402,6 +2590,11 @@ static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile
 	
 	free(p_buffer);
 	fclose(p_file);
+	
+	if (m_args.tiled_output)
+	{
+		write_tiled_files(image_width, image_height, tile_width, tile_height, block_width, block_height);
+	}
 }
 
 static match_t check_tile(int i)
@@ -2804,14 +2997,7 @@ static void process_tiles()
 						uint8_t attributes = 0;
 						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						
-						if (m_args.colors_4bit)
-						{
-							m_map[x * (m_image_height / m_tile_height) + y] = (ti & 0x3fff) | (attributes << 8);
-						}
-						else
-						{
-							m_map[x * (m_image_height / m_tile_height) + y] = ti;
-						}
+						m_map[x * (m_image_height / m_tile_height) + y] = (ti & 0x1FF) | (attributes << 8);
 					}
 					else
 					{
@@ -2832,14 +3018,7 @@ static void process_tiles()
 						uint8_t attributes = 0;
 						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						
-						if (m_args.colors_4bit)
-						{
-							m_map[y * (m_image_width / m_tile_width) + x] = (ti & 0x3fff) | (attributes << 8);
-						}
-						else
-						{
-							m_map[y * (m_image_width / m_tile_width) + x] = ti;
-						}
+						m_map[y * (m_image_width / m_tile_width) + x] = (ti & 0x1FF) | (attributes << 8);
 					}
 					else
 					{
@@ -2852,18 +3031,58 @@ static void process_tiles()
 	}
 }
 
+static uint8_t attributes_to_tiled_flags(uint8_t attributes)
+{
+	uint8_t tile_flags = attributes;
+	
+	if (attributes & MATCH_ROTATE)
+	{
+		if ((attributes & (MATCH_MIRROR_X | MATCH_MIRROR_Y)) == (MATCH_MIRROR_X | MATCH_MIRROR_Y))
+			tile_flags = TILED_DIAG | TILED_VERT;
+		else if (attributes & MATCH_MIRROR_X)
+			tile_flags = TILED_DIAG;
+		else  if (attributes & MATCH_MIRROR_Y)
+			tile_flags = TILED_DIAG | TILED_HORIZ | TILED_VERT;
+		else
+			tile_flags = TILED_DIAG | TILED_HORIZ;
+	}
+	
+	return tile_flags;
+}
+
+static uint8_t tiled_flags_to_attributes(uint8_t tile_flags)
+{
+	uint8_t attributes = tile_flags;
+		
+	if (tile_flags & TILED_DIAG)
+	{
+		if ((tile_flags & TILED_HORIZ_VERT) == TILED_HORIZ_VERT)
+			attributes = MATCH_ROTATE | MATCH_MIRROR_Y;
+		else if (tile_flags & TILED_HORIZ)
+			attributes = MATCH_ROTATE;
+		else  if (tile_flags & TILED_VERT)
+			attributes = MATCH_ROTATE | MATCH_MIRROR_X | MATCH_MIRROR_Y;
+		else
+			attributes = MATCH_ROTATE | MATCH_MIRROR_X;
+	}
+	
+	return attributes;
+}
+
 static void parse_tile(char *line, int first_gid, int *tile_count)
 {
 	char *pch = strtok(line, ",\r\n");
 	
 	while (pch != NULL)
 	{
-		int tile_id = atoi(pch);
+		uint32_t tile_id = atoi(pch);
 		
 		if (tile_id == -1)
 			tile_id = m_args.tiled_blank;
 		
-		m_map[(*tile_count)++] = tile_id - first_gid;
+		uint8_t attributes = tiled_flags_to_attributes(tile_id >> 28);
+
+		m_map[(*tile_count)++] = ((tile_id & TILED_TILEID_MASK) - first_gid) | (attributes << 8);
 		
 		pch = strtok(NULL, ",\r\n");
 	}

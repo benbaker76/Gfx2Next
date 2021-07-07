@@ -29,6 +29,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-screen-noattribs|Remove color attributes|
 |-bitmap|Sets output to Next bitmap mode (.nxi)|
 |-bitmap-y|Get bitmap in Y order first. (Default is X order first)|
+|-bitmap-size=XxY|Splits up the bitmap output file into X x Y sections|
 |-sprites|Sets output to Next sprite mode (.spr)|
 |-tiles-file=&lt;filename&gt;|Load tiles from file in .nxt format|
 |-tile-size=XxY|Sets tile size to X x Y|
@@ -37,7 +38,9 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-y|Get tile in Y order first. (Default is X order first)|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first)|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
-|-tiled-blank=X|Set the tile id of the blank tile|
+|-tiled-blank=n|Set the tile id of the blank tile|
+|-tiled-output|Outputs tile and map data to Tiled .tmx and .tsx format|
+|-tiled-width=n|Sets Tiled tileset width output in pixels (default is 256)|
 |-block-size=XxY|Sets blocks size to X x Y for blocks of tiles|
 |-block-size=n|Sets blocks size to n bytes for blocks of tiles|
 |-block-norepeat|Remove repeating blocks|
@@ -48,7 +51,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-bank-8k|Splits up output file into multiple 8k files|
 |-bank-16k|Splits up output file into multiple 16k files|
 |-bank-48k|Splits up output file into multiple 48k files|
-|-bank-size=XxY|Splits up output file into multiple X x Y files|
+|-bank-size=n|Splits up output file into multiple n byte size files|
 |-bank-sections=name,..|Section names for asm files|
 |-color-distance|Use the shortest distance between color values (default)|
 |-color-floor|Round down the color values to the nearest integer|
@@ -85,6 +88,8 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 * gfx2next.exe -tile-norotate -map-16bit -colors-4bit -asm-z80asm -bank-sections=rodata_user,BANK_17,BANK_17 tiles.png
 * gfx2next.exe -sprites -colors-4bit -pal-min -pal-ext -preview sprites.png
 * gfx2next.exe -bitmap -pal-std -preview titlescreen.png
+* gfx2next.exe -tiled-file=map.tmx -tile-norotate -map-16bit -pal-none -preview map_tileset.png
+* gfx2next.exe -tiled-output -tile-norotate -map-16bit -preview map.png
 
 ## Source code
 https://github.com/headkaze/Gfx2Next
