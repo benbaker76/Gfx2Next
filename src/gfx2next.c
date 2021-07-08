@@ -103,7 +103,6 @@
 #define EXT_NXI						".nxi"
 #define EXT_SCR						".scr"
 #define EXT_TMX						".tmx"
-#define EXT_TSX						".tsx"
 
 static void write_easter_egg();
 static uint8_t attributes_to_tiled_flags(uint8_t attributes);
@@ -2428,67 +2427,11 @@ static void write_blocks()
 
 static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
 {
-	char name[256] = { 0 }, png_filename[256] = { 0 }, tmx_filename[256] = { 0 }, tsx_filename[256] = { 0 };
+	char name[256] = { 0 }, png_filename[256] = { 0 }, tmx_filename[256] = { 0 };
 	create_name(name, m_args.out_filename);
 	create_filename(png_filename, m_args.out_filename, "_tileset.png", false);
 	create_filename(tmx_filename, m_args.out_filename, EXT_TMX, false);
-	create_filename(tsx_filename, m_args.out_filename, EXT_TSX, false);
 	FILE *p_tmx_file = fopen(tmx_filename, "w");
-	FILE *p_tsx_file = fopen(tsx_filename, "w");
-	
-	uint32_t map_width = image_width / (tile_width * block_width);
-	uint32_t map_height = image_height / (tile_height * block_height);
-	uint16_t map_mask = m_args.map_16bit ? 0x1ff : 0xff;
-	uint32_t first_gid = 1;
-	
-	fprintf(p_tmx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-	fprintf(p_tmx_file, "<map version=\"1.5\" tiledversion=\"1.7.0\" orientation=\"orthogonal\" renderorder=\"right-down\" width=\"%d\" height=\"%d\" tilewidth=\"%d\" tileheight=\"%d\" infinite=\"0\" nextlayerid=\"2\" nextobjectid=\"1\">\n", map_width, map_height, tile_width, tile_height);
-	fprintf(p_tmx_file, " <tileset firstgid=\"%d\" source=\"%s\"/>\n", first_gid, tsx_filename);
-	fprintf(p_tmx_file, " <layer id=\"1\" name=\"Tile Layer 1\" width=\"%d\" height=\"%d\">\n", map_width, map_height);
-	fprintf(p_tmx_file, "  <data encoding=\"csv\">\n");
-
-	if (m_args.map_y)
-	{
-		for (int x = 0; x < map_width; x++)
-		{
-			for (int y = 0; y < map_height; y++)
-			{
-				uint16_t tile_id = m_map[y * map_width + x];
-				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
-				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
-				
-				if (x == map_width-1 && y == map_height-1)
-					fprintf(p_tmx_file, "%u", tile_value);
-				else
-					fprintf(p_tmx_file, "%u,", tile_value);
-			}
-			fprintf(p_tmx_file, "\n");
-		}
-	}
-	else
-	{
-		for (int y = 0; y < map_height; y++)
-		{
-			for (int x = 0; x < map_width; x++)
-			{
-				uint16_t tile_id = m_map[y * map_width + x];
-				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
-				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
-				
-				if (x == map_width-1 && y == map_height-1)
-					fprintf(p_tmx_file, "%u", tile_value);
-				else
-					fprintf(p_tmx_file, "%u,", tile_value);
-			}
-			fprintf(p_tmx_file, "\n");
-		}
-	}
-	
-	fprintf(p_tmx_file, "</data>\n");
-	fprintf(p_tmx_file, " </layer>\n");
-	fprintf(p_tmx_file, "</map>\n");
-
-	fclose(p_tmx_file);
 	
 	uint32_t tile_count = MIN(m_tile_count, m_args.map_16bit ? 511 : 255);
 	uint32_t data_size = tile_count * m_tile_size;
@@ -2537,12 +2480,61 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	
 	free(p_image);
 	
-	fprintf(p_tsx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-	fprintf(p_tsx_file, "<tileset version=\"1.4\" tiledversion=\"1.4.1\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", name, tile_width, tile_height, tile_count, bitmap_width / tile_width);
-	fprintf(p_tsx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
-	fprintf(p_tsx_file, "</tileset>\n");
+	uint32_t map_width = image_width / (tile_width * block_width);
+	uint32_t map_height = image_height / (tile_height * block_height);
+	uint16_t map_mask = m_args.map_16bit ? 0x1ff : 0xff;
+	uint32_t first_gid = 1;
 	
-	fclose(p_tsx_file);
+	fprintf(p_tmx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	fprintf(p_tmx_file, "<map version=\"1.5\" tiledversion=\"1.7.0\" orientation=\"orthogonal\" renderorder=\"right-down\" width=\"%d\" height=\"%d\" tilewidth=\"%d\" tileheight=\"%d\" infinite=\"0\" nextlayerid=\"2\" nextobjectid=\"1\">\n", map_width, map_height, tile_width, tile_height);
+	fprintf(p_tmx_file, "<tileset firstgid=\"%d\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", first_gid, name, tile_width, tile_height, tile_count, bitmap_width / tile_width);
+	fprintf(p_tmx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
+	fprintf(p_tmx_file, "</tileset>\n");
+	fprintf(p_tmx_file, " <layer id=\"1\" name=\"Tile Layer 1\" width=\"%d\" height=\"%d\">\n", map_width, map_height);
+	fprintf(p_tmx_file, "  <data encoding=\"csv\">\n");
+
+	if (m_args.map_y)
+	{
+		for (int x = 0; x < map_width; x++)
+		{
+			for (int y = 0; y < map_height; y++)
+			{
+				uint16_t tile_id = m_map[y * map_width + x];
+				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
+				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
+				
+				if (x == map_width-1 && y == map_height-1)
+					fprintf(p_tmx_file, "%u", tile_value);
+				else
+					fprintf(p_tmx_file, "%u,", tile_value);
+			}
+			fprintf(p_tmx_file, "\n");
+		}
+	}
+	else
+	{
+		for (int y = 0; y < map_height; y++)
+		{
+			for (int x = 0; x < map_width; x++)
+			{
+				uint16_t tile_id = m_map[y * map_width + x];
+				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
+				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
+				
+				if (x == map_width-1 && y == map_height-1)
+					fprintf(p_tmx_file, "%u", tile_value);
+				else
+					fprintf(p_tmx_file, "%u,", tile_value);
+			}
+			fprintf(p_tmx_file, "\n");
+		}
+	}
+	
+	fprintf(p_tmx_file, "</data>\n");
+	fprintf(p_tmx_file, " </layer>\n");
+	fprintf(p_tmx_file, "</map>\n");
+
+	fclose(p_tmx_file);
 }
 
 static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)

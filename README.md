@@ -39,7 +39,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first)|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
 |-tiled-blank=n|Set the tile id of the blank tile|
-|-tiled-output|Outputs tile and map data to Tiled .tmx and .tsx format|
+|-tiled-output|Outputs tileset .png and map data to Tiled .tmx format|
 |-tiled-width=n|Sets Tiled tileset width output in pixels (default is 256)|
 |-block-size=XxY|Sets blocks size to X x Y for blocks of tiles|
 |-block-size=n|Sets blocks size to n bytes for blocks of tiles|
