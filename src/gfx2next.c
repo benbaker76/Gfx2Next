@@ -36,7 +36,7 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.8"
+#define VERSION						"1.0.9"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -1507,6 +1507,55 @@ static void write_png(const char *in_filename, uint8_t *p_image, int width, int 
 	write_png_bits(in_filename, p_image, width, height, m_args.bitmap && m_args.colors_4bit && !m_args.pal_full);
 }
 
+static void write_tiles_png(char *png_filename, uint32_t tile_width, uint32_t tile_height, uint32_t tile_offset, uint32_t tile_count, uint32_t tilesheet_width, uint32_t *bitmap_width, uint32_t *bitmap_height)
+{
+	uint32_t tile_size = tile_width * tile_height;
+	uint32_t data_size = tile_count * tile_size;
+	*bitmap_width = MIN(tilesheet_width, tile_count * tile_width);
+	*bitmap_height = (uint32_t)ceil((double)data_size / *bitmap_width / tile_height) * tile_height;
+	uint32_t bitmap_size = *bitmap_width * *bitmap_height;
+	uint32_t tile_cols = *bitmap_width / tile_width;
+	
+	uint8_t *p_image = malloc(bitmap_size);
+	
+	memset(p_image, 0, bitmap_size);
+	
+	for (int t = 0; t < tile_count; t++)
+	{
+		uint32_t tile_id = tile_offset + t;
+		uint32_t tile_x = t % tile_cols;
+		uint32_t tile_y = t / tile_cols;
+		uint32_t src_offset = tile_id * tile_size;
+		uint32_t dst_offset = tile_y * *bitmap_width * tile_height + tile_x * tile_width;
+		
+		for (int y = 0; y < tile_height; y++)
+		{
+			for (int x = 0; x < tile_width; x++)
+			{
+				uint32_t src_index = src_offset + y * tile_width + x;
+				uint32_t dst_index = dst_offset + y * *bitmap_width + x;
+
+				if (m_args.colors_4bit)
+					src_index >>= 1;
+
+				if (m_args.colors_4bit)
+				{
+					if ((x & 1) == 0)
+						p_image[dst_index] = m_tiles[src_index] >> 4;
+					else
+						p_image[dst_index] = m_tiles[src_index] & 0xf;
+				}
+				else
+				{
+					p_image[dst_index] = m_tiles[src_index];
+				}
+			}
+		}
+	}
+	
+	write_png_bits(png_filename, p_image, *bitmap_width, *bitmap_height, false);
+}
+
 static void process_palette()
 {
 	// Update the colors in the palette.
@@ -2286,18 +2335,17 @@ static void write_next_bitmap()
 static void write_tiles_sprites()
 {
 	char out_filename[256] = { 0 };
-	int tile_size = m_tile_size * m_tile_count;
+	uint32_t tile_offset = 0;
+	uint32_t tile_size = (m_args.colors_4bit ? m_tile_size >> 1 : m_tile_size);
+	uint32_t data_size = tile_size * m_tile_count;
 		
-	if (m_args.colors_4bit)
-		tile_size >>= 1;
-	
 	if (m_args.bank_size > BANKSIZE_NONE)
 	{
 		m_bank_count = 0;
 
-		while (tile_size > 0)
+		while (data_size > 0)
 		{
-			int bank_size = (tile_size < m_bank_size ? tile_size : m_bank_size);
+			uint32_t bank_size = (data_size < m_bank_size ? data_size : m_bank_size);
 			
 			if (m_args.sprites)
 			{
@@ -2335,13 +2383,19 @@ static void write_tiles_sprites()
 
 			if (m_args.preview)
 			{
+				uint32_t tile_count = bank_size / tile_size;
+				uint32_t bitmap_width = 0, bitmap_height = 0;
+				
 				create_series_filename(out_filename, m_args.out_filename, "_preview.png", false, m_bank_count);
-
-				write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_image_width, bank_size / m_image_width);
+				
+				//write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_image_width, bank_size / m_image_width);
+				write_tiles_png(out_filename, m_tile_width, m_tile_height, tile_offset, tile_count, 256, &bitmap_width, &bitmap_height);
+				
+				tile_offset += tile_count;
 			}
 			
 			m_bank_count++;
-			tile_size -= bank_size;
+			data_size -= bank_size;
 		}
 	}
 	else
@@ -2364,11 +2418,20 @@ static void write_tiles_sprites()
 
 		if (m_args.sprites)
 		{
-			write_next_bitmap_file(p_file, out_filename, m_tiles, tile_size, m_args.compress & COMPRESS_SPRITES);
+			write_next_bitmap_file(p_file, out_filename, m_tiles, data_size, m_args.compress & COMPRESS_SPRITES);
 		}
 		else
 		{
-			write_next_bitmap_file(p_file, out_filename, m_tiles, tile_size, m_args.compress & COMPRESS_TILES);
+			write_next_bitmap_file(p_file, out_filename, m_tiles, data_size, m_args.compress & COMPRESS_TILES);
+		}
+		
+		if (m_args.preview)
+		{
+			uint32_t bitmap_width = 0, bitmap_height = 0;
+
+			create_filename(out_filename, m_args.out_filename, "_tileset_preview.png", false);
+
+			write_tiles_png(out_filename, m_tile_width, m_tile_height, 0, m_tile_count, 256, &bitmap_width, &bitmap_height);
 		}
 		
 		fclose(p_file);
@@ -2433,52 +2496,10 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	create_filename(tmx_filename, m_args.out_filename, EXT_TMX, false);
 	FILE *p_tmx_file = fopen(tmx_filename, "w");
 	
-	uint32_t tile_count = MIN(m_tile_count, m_args.map_16bit ? 511 : 255);
-	uint32_t data_size = tile_count * m_tile_size;
-	uint32_t bitmap_width = MIN(m_args.tiled_width, tile_count * tile_width);
-	uint32_t bitmap_height = (uint32_t)ceil((double)data_size / bitmap_width / tile_height) * tile_height;
-	uint32_t bitmap_size = bitmap_width * bitmap_height;
-	uint32_t tile_cols = bitmap_width / tile_width;
+	uint32_t tile_count = MIN(m_tile_count, m_args.map_16bit ? 512 : 256);
+	uint32_t bitmap_width = 0, bitmap_height = 0;
 	
-	uint8_t *p_image = malloc(bitmap_size);
-	
-	memset(p_image, 0, bitmap_size);
-	
-	for (int t = 0; t < tile_count; t++)
-	{
-		uint32_t tile_x = t % tile_cols;
-		uint32_t tile_y = t / tile_cols;
-		uint32_t src_offset = t * m_tile_size;
-		uint32_t dst_offset = tile_y * bitmap_width * tile_height + tile_x * tile_width;
-		
-		for (int y = 0; y < tile_height; y++)
-		{
-			for (int x = 0; x < tile_width; x++)
-			{
-				uint32_t src_index = src_offset + y * tile_width + x;
-				uint32_t dst_index = dst_offset + y * bitmap_width + x;
-
-				if (m_args.colors_4bit)
-					src_index >>= 1;
-
-				if (m_args.colors_4bit)
-				{
-					if ((x & 1) == 0)
-						p_image[dst_index] = m_tiles[src_index] >> 4;
-					else
-						p_image[dst_index] = m_tiles[src_index] & 0xf;
-				}
-				else
-				{
-					p_image[dst_index] = m_tiles[src_index];
-				}
-			}
-		}
-	}
-	
-	write_png_bits(png_filename, p_image, bitmap_width, bitmap_height, false);
-	
-	free(p_image);
+	write_tiles_png(png_filename, tile_width, tile_height, 0, tile_count, m_args.tiled_width, &bitmap_width, &bitmap_height);
 	
 	uint32_t map_width = image_width / (tile_width * block_width);
 	uint32_t map_height = image_height / (tile_height * block_height);
