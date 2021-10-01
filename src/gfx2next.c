@@ -36,7 +36,7 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.0.9"
+#define VERSION						"1.1.0"
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -257,6 +257,8 @@ typedef struct
 	bool tile_norotate;
 	bool tile_y;
 	bool tile_ldws;
+	int tile_offset;
+	int tile_pal;
 	char *tiled_file;
 	int tiled_blank;
 	bool tiled_output;
@@ -301,6 +303,8 @@ static arguments_t m_args  =
 	.tile_norotate = false,
 	.tile_y = false,
 	.tile_ldws = false,
+	.tile_offset = 0,
+	.tile_pal = 0,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
 	.tiled_output = false,
@@ -797,6 +801,8 @@ static void print_usage(void)
 	printf("  -tile-norotate          Remove repeating, rotating and mirrored tiles\n");
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
+	printf("  -tile-offset=n          Sets the starting tile offset to n tiles\n");
+	printf("  -tile-pal=n             Sets the palette offset attribute to n\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
 	printf("  -tiled-blank=n          Set the tile id of the blank tile\n");
 	printf("  -tiled-output           Outputs tile and map data to Tiled .tmx and .tsx format\n");
@@ -930,6 +936,18 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-ldws"))
 			{
 				m_args.tile_ldws = true;
+			}
+			else if (!strncmp(argv[i], "-tile-offset=", 13))
+			{
+				m_args.tile_offset = atoi(&argv[i][13]);
+
+				printf("Tile Offset = %d\n", m_args.tile_offset);
+			}
+			else if (!strncmp(argv[i], "-tile-pal=", 10))
+			{
+				m_args.tile_pal = atoi(&argv[i][10]);
+
+				printf("Tile Palette = %d\n", m_args.tile_pal);
 			}
 			else if (!strncmp(argv[i], "-tiled-file=", 12))
 			{
@@ -2878,6 +2896,8 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 		m_tile_count++;
 	}
 	
+	*attributes |= m_args.tile_pal << 4;
+	
 	if (m_args.debug)
 		printf("Tile Index = %04x, Tile Count = %d\n", tile_index, m_tile_count);
 	
@@ -3012,7 +3032,7 @@ static void process_tiles()
 					if (m_block_width == 1 && m_block_height == 1)
 					{
 						uint8_t attributes = 0;
-						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
+						uint32_t ti = m_args.tile_offset + get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						uint16_t map_mask = (m_args.map_16bit ? 0x1ff : 0xff);
 						
 						m_map[x * (m_image_height / m_tile_height) + y] = (ti & map_mask) | (attributes << 8);
@@ -3034,7 +3054,7 @@ static void process_tiles()
 					if (m_block_width == 1 && m_block_height == 1)
 					{
 						uint8_t attributes = 0;
-						uint32_t ti = get_tile(x * m_tile_width, y * m_tile_height, &attributes);
+						uint32_t ti = m_args.tile_offset + get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						uint16_t map_mask = (m_args.map_16bit ? 0x1ff : 0xff);
 						
 						m_map[y * (m_image_width / m_tile_width) + x] = (ti & map_mask) | (attributes << 8);
