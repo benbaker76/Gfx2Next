@@ -37,6 +37,8 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-norotate|Remove repeating, rotating and mirrored tiles|
 |-tile-y|Get tile in Y order first. (Default is X order first)|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first)|
+|-tile-offset=n|Sets the starting tile offset to n tiles|
+|-tile-pal=n|Sets the palette offset attribute to n|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
 |-tiled-blank=n|Set the tile id of the blank tile|
 |-tiled-output|Outputs tileset .png and map data to Tiled .tmx format|
