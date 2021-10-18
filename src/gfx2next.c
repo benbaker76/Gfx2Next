@@ -36,7 +36,9 @@
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.0"
+#define VERSION						"1.1.1"
+
+#define DIR_SEPERATOR_CHAR			'\\'
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
@@ -890,6 +892,7 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			}
 			else if (!strcmp(argv[i], "-bitmap-y"))
 			{
+				m_args.bitmap = true;
 				m_args.bitmap_y = true;
 			}
 			else if (!strncmp(argv[i], "-bitmap-size=", 13))
@@ -1204,7 +1207,9 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 
 static void create_name(char *out_name, const char *in_filename)
 {
-	strcpy(out_name, in_filename);
+	char *start = strrchr(in_filename, DIR_SEPERATOR_CHAR);
+	
+	strcpy(out_name, start == NULL ? in_filename : start + 1);
 
 	char *end = strchr(out_name, '.');
 	end = (end == NULL ? out_name + strlen(out_name) : end);
@@ -1214,7 +1219,9 @@ static void create_name(char *out_name, const char *in_filename)
 
 static void create_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression)
 {
-	strcpy(out_filename, in_filename);
+	char *start = strrchr(in_filename, DIR_SEPERATOR_CHAR);
+	
+	strcpy(out_filename, start == NULL ? in_filename : start + 1);
 
 	char *end = strchr(out_filename, '.');
 	end = (end == NULL ? out_filename + strlen(out_filename) : end);
@@ -1227,7 +1234,9 @@ static void create_filename(char *out_filename, const char *in_filename, const c
 
 static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression, int index)
 {
-	strcpy(out_filename, in_filename);
+	char *start = strrchr(in_filename, DIR_SEPERATOR_CHAR);
+	
+	strcpy(out_filename, start == NULL ? in_filename : start + 1);
 	
 	char *end = strchr(out_filename, '.');
 	out_filename[end == NULL ? strlen(out_filename) : (int)(end - out_filename)] = '\0';
