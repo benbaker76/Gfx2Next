@@ -24,19 +24,21 @@
  *
  ******************************************************************************/
 
+int _CRT_glob = 0;
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <glob.h>
 #include <ctype.h>
 #include <math.h>
 #include <assert.h>
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.1"
+#define VERSION						"1.1.2"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -57,6 +59,7 @@
 #define TILES_SIZE					262144 * 256
 #define MAP_SIZE					1024 * 1024
 #define BLOCK_SIZE					1024 * 1024
+#define NUM_BANKS					256
 
 #define SIZE_8K						8192
 #define SIZE_16K					16384
@@ -260,7 +263,10 @@ typedef struct
 	bool tile_y;
 	bool tile_ldws;
 	int tile_offset;
+	bool tile_offset_auto;
 	int tile_pal;
+	bool tile_pal_auto;
+	bool tile_none;
 	char *tiled_file;
 	int tiled_blank;
 	bool tiled_output;
@@ -284,7 +290,9 @@ typedef struct
 	asm_mode_t asm_mode;
 	char *asm_file;
 	bool asm_start;
+	bool asm_start_auto;
 	bool asm_end;
+	bool asm_end_auto;
 	bool asm_sequence;
 	bool preview;
 } arguments_t;
@@ -306,7 +314,10 @@ static arguments_t m_args  =
 	.tile_y = false,
 	.tile_ldws = false,
 	.tile_offset = 0,
+	.tile_offset_auto = false,
 	.tile_pal = 0,
+	.tile_pal_auto = false,
+	.tile_none = false,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
 	.tiled_output = false,
@@ -330,7 +341,9 @@ static arguments_t m_args  =
 	.asm_mode = ASMMODE_NONE,
 	.asm_file = NULL,
 	.asm_start = false,
+	.asm_start_auto = false,
 	.asm_end = false,
+	.asm_end_auto = false,
 	.asm_sequence = false,
 	.preview = false,
 };
@@ -360,10 +373,12 @@ static uint32_t m_next_image_size = 0;
 static uint32_t m_padded_image_width = 0;
 static bool m_bottom_to_top_image = false;
 
+static uint32_t m_bank_index = 0;
 static uint32_t m_bank_size = 0;
 static uint32_t m_bank_count = 0;
 
 static char m_bank_sections[MAX_BANK_SECTION_COUNT][256] = { { 0 } };
+static uint32_t m_bank_used[NUM_BANKS] = { 0 };
 static uint32_t m_bank_section_index = 0;
 static uint32_t m_bank_section_count = 0;
 
@@ -389,7 +404,7 @@ static FILE *m_bitmap_file = NULL;
 static FILE *m_asm_file = NULL;
 static FILE *m_header_file = NULL;
 
-static void exit_handler(void)
+static void close_all(void)
 {
 	if (m_image != NULL)
 	{
@@ -420,6 +435,11 @@ static void exit_handler(void)
 		fclose(m_header_file);
 		m_header_file = NULL;
 	}
+}
+
+static void exit_handler(void)
+{
+	close_all();
 }
 
 static void exit_with_msg(const char *format, ...)
@@ -610,7 +630,7 @@ static void convert_palette(color_mode_t color_mode)
 
 		if (color_mode == COLORMODE_DISTANCE)
 		{
-			uint32_t rgb888 =  get_nearest_color(RGB888(r8, g8, b8), false);
+			uint32_t rgb888 =  get_nearest_color(RGB888(r8, g8, b8), true);
 			
 			m_palette[i * 4 + 0] = 0;
 			m_palette[i * 4 + 1] = (rgb888 >> 16);
@@ -650,7 +670,7 @@ static void convert_standard_palette(color_mode_t color_mode)
 
 		if (color_mode == COLORMODE_DISTANCE)
 		{
-			m_std_palette_index[i] = rgb888_to_rgb332(get_nearest_color(RGB888(r8, g8, b8), false), COLORMODE_ROUND);
+			m_std_palette_index[i] = rgb888_to_rgb332(get_nearest_color(RGB888(r8, g8, b8), true), COLORMODE_ROUND);
 		}
 		else
 		{
@@ -804,7 +824,10 @@ static void print_usage(void)
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
 	printf("  -tile-offset=n          Sets the starting tile offset to n tiles\n");
+	printf("  -tile-offset-auto       Adds tile offset when using wildcards\n");
 	printf("  -tile-pal=n             Sets the palette offset attribute to n\n");
+	printf("  -tile-pal-auto          Increments palette offset when using wildcards\n");
+	printf("  -tile-none              Don't save a tile file\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
 	printf("  -tiled-blank=n          Set the tile id of the blank tile\n");
 	printf("  -tiled-output           Outputs tile and map data to Tiled .tmx and .tsx format\n");
@@ -813,7 +836,7 @@ static void print_usage(void)
 	printf("  -block-size=n           Sets blocks size to n bytes for blocks of tiles\n");
 	printf("  -block-norepeat         Remove repeating blocks\n");
 	printf("  -block-16bit            Get blocks as 16 bit index for < 256 blocks\n");
-	printf("  -map-none               Don't save a map file (e.g. if you're just adding to tiles)\n");
+	printf("  -map-none               Don't save a map file\n");
 	printf("  -map-16bit              Save map as 16 bit output\n");
 	printf("  -map-y                  Save map in Y order first. (Default is X order first)\n");
 	printf("  -bank-8k                Splits up output file into multiple 8k files\n");
@@ -850,7 +873,9 @@ static void print_usage(void)
 	printf("  -asm-sjasm              Generate asm binary incbin file (SjASM format)\n");
 	printf("  -asm-file=<name>        Append asm and header output to <name>.asm and <name>.h\n");
 	printf("  -asm-start              Specifies the start of the asm and header data for appending\n");
+	printf("  -asm-start-auto         Sets start parameter for first item when using wildcards\n");
 	printf("  -asm-end                Specifies the end of the asm and header data for appending\n");
+	printf("  -asm-end-auto           Sets end parameter for first item when using wildcards\n");
 	printf("  -asm-sequence           Add sequence section for multi-bank spanning data\n");
 	printf("  -preview                Generate png preview file(s)\n");
 }
@@ -943,14 +968,22 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strncmp(argv[i], "-tile-offset=", 13))
 			{
 				m_args.tile_offset = atoi(&argv[i][13]);
-
-				printf("Tile Offset = %d\n", m_args.tile_offset);
+			}
+			else if (!strcmp(argv[i], "-tile-offset-auto"))
+			{
+				m_args.tile_offset_auto = true;
 			}
 			else if (!strncmp(argv[i], "-tile-pal=", 10))
 			{
 				m_args.tile_pal = atoi(&argv[i][10]);
-
-				printf("Tile Palette = %d\n", m_args.tile_pal);
+			}
+			else if (!strcmp(argv[i], "-tile-pal-auto"))
+			{
+				m_args.tile_pal_auto = true;
+			}
+			else if (!strcmp(argv[i], "-tile-none"))
+			{
+				m_args.tile_none = true;
 			}
 			else if (!strncmp(argv[i], "-tiled-file=", 12))
 			{
@@ -1033,9 +1066,20 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 					strcpy(m_bank_sections[m_bank_section_count++], token);
 					token = strtok(NULL, ",");
 				}
-				
-				for (int i = 0; i < m_bank_section_count; i++)
-					printf("Bank Section %d = %s\n", i, m_bank_sections[i]);
+			}
+			else if (!strncmp(argv[i], "-bank-used=", 11))
+			{
+				char *token = strtok(&argv[i][11], ",");
+
+				while (token != NULL)
+				{
+					if (strncmp("BANK_", token, 5) == 0)
+					{
+						uint8_t bank_index =  atoi(&token[5]);
+						m_bank_used[bank_index] = atoi(strchr(token, '=') + 1);
+					}
+					token = strtok(NULL, ",");
+				}
 			}
 			else if (!strcmp(argv[i], "-color-distance"))
 			{
@@ -1141,9 +1185,17 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.asm_start = true;
 			}
+			else if (!strcmp(argv[i], "-asm-start-auto"))
+			{
+				m_args.asm_start_auto = true;
+			}
 			else if (!strcmp(argv[i], "-asm-end"))
 			{
 				m_args.asm_end = true;
+			}
+			else if (!strcmp(argv[i], "-asm-end-auto"))
+			{
+				m_args.asm_end_auto = true;
 			}
 			else if (!strcmp(argv[i], "-asm-sequence"))
 			{
@@ -1816,9 +1868,35 @@ static void write_asm_file(char *p_filename, uint32_t data_size)
 	else if (m_args.asm_mode == ASMMODE_Z80ASM)
 	{
 		if (m_bank_section_index < m_bank_section_count)
+		{
+			if (strncmp("BANK_", m_bank_sections[m_bank_section_index], 5) == 0)
+			{
+				m_bank_index = atoi(&m_bank_sections[m_bank_section_index][5]);
+				
+				m_bank_used[m_bank_index] += data_size;
+			}
+			
 			fprintf(m_asm_file, "\nSECTION %s\n", m_bank_sections[m_bank_section_index++]);
+		}
 		else
-			fprintf(m_asm_file, "\nSECTION rodata_user\n");
+		{
+			if (m_bank_index == 0)
+			{
+				fprintf(m_asm_file, "\nSECTION rodata_user\n");
+			}
+			else
+			{
+				if (m_bank_used[m_bank_index] + data_size >= m_bank_size)
+				{
+					m_bank_index++;
+				}
+				
+				m_bank_used[m_bank_index] += data_size;
+				
+				fprintf(m_asm_file, "\nSECTION BANK_%d\n", m_bank_index);
+			}
+		}
+		
 		fprintf(m_asm_file, "\nPUBLIC _%s\n", label);
 		fprintf(m_asm_file, "PUBLIC _%s_end\n", label);
 		fprintf(m_asm_file, "\n_%s:\n", label);
@@ -1923,6 +2001,7 @@ static void write_file(FILE *p_file, char *p_filename, uint8_t *p_buffer, uint32
 	if (use_compression)
 	{
 		size_t compressed_size = 0;
+		
 		uint8_t *compressed_buffer = zx0_compress(p_buffer, buffer_size, m_args.zx0_quick, m_args.zx0_back, &compressed_size);
 
 		if (m_args.asm_mode > ASMMODE_NONE)
@@ -2365,7 +2444,9 @@ static void write_tiles_sprites()
 	uint32_t tile_offset = 0;
 	uint32_t tile_size = (m_args.colors_4bit ? m_tile_size >> 1 : m_tile_size);
 	uint32_t data_size = tile_size * m_tile_count;
-		
+	const char *extension = (m_args.sprites ? EXT_SPR : EXT_NXT);
+	bool use_compression = m_args.compress &  (m_args.sprites ? COMPRESS_SPRITES : COMPRESS_TILES);
+
 	if (m_args.bank_size > BANKSIZE_NONE)
 	{
 		m_bank_count = 0;
@@ -2374,14 +2455,7 @@ static void write_tiles_sprites()
 		{
 			uint32_t bank_size = (data_size < m_bank_size ? data_size : m_bank_size);
 			
-			if (m_args.sprites)
-			{
-				create_series_filename(out_filename, m_args.out_filename, EXT_SPR, m_args.compress & COMPRESS_SPRITES, m_bank_count);
-			}
-			else
-			{
-				create_series_filename(out_filename, m_args.out_filename, EXT_NXT, m_args.compress & COMPRESS_TILES, m_bank_count);
-			}
+			create_series_filename(out_filename, m_args.out_filename, extension, use_compression, m_bank_count);
 			
 			if (m_args.asm_mode > ASMMODE_NONE)
 			{
@@ -2391,20 +2465,13 @@ static void write_tiles_sprites()
 			}
 			
 			FILE *p_file = fopen(out_filename, "wb");
-	
+
 			if (p_file == NULL)
 			{
 				exit_with_msg("Can't create file %s.\n", out_filename);
 			}
 			
-			if (m_args.sprites)
-			{
-				write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, m_args.compress & COMPRESS_SPRITES);
-			}
-			else
-			{
-				write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, m_args.compress & COMPRESS_TILES);
-			}
+			write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, use_compression);
 			
 			fclose(p_file);
 
@@ -2427,14 +2494,7 @@ static void write_tiles_sprites()
 	}
 	else
 	{
-		if (m_args.sprites)
-		{
-			create_filename(out_filename, m_args.out_filename, EXT_SPR, m_args.compress & COMPRESS_SPRITES);
-		}
-		else
-		{
-			create_filename(out_filename, m_args.out_filename, EXT_NXT, m_args.compress & COMPRESS_TILES);
-		}
+		create_filename(out_filename, m_args.out_filename, extension, use_compression);
 		
 		FILE *p_file = fopen(out_filename, "wb");
 		
@@ -2443,14 +2503,7 @@ static void write_tiles_sprites()
 			exit_with_msg("Can't create file %s.\n", out_filename);
 		}
 
-		if (m_args.sprites)
-		{
-			write_next_bitmap_file(p_file, out_filename, m_tiles, data_size, m_args.compress & COMPRESS_SPRITES);
-		}
-		else
-		{
-			write_next_bitmap_file(p_file, out_filename, m_tiles, data_size, m_args.compress & COMPRESS_TILES);
-		}
+		write_next_bitmap_file(p_file, out_filename, m_tiles, data_size, use_compression);
 		
 		if (m_args.preview)
 		{
@@ -3147,10 +3200,10 @@ static void parse_tile(char *line, int first_gid, int *tile_count)
 	}
 }
 
-/* static void parse_csv(char *file_name, int *tile_count)
+/* static void parse_csv(char *filename, int *tile_count)
 {
 	char line[512];
-	FILE *csv_file = fopen(file_name, "r");
+	FILE *csv_file = fopen(filename, "r");
 	
 	while (fgets(line, 512, csv_file))
 	{
@@ -3190,10 +3243,10 @@ static bool get_int(char *line, char *name, int *value)
 	return true;
 }
 
-static void parse_tmx(char *file_name)
+static void parse_tmx(char *filename)
 {
 	char line[512], string[32];
-	FILE *csv_file = fopen(file_name, "r");
+	FILE *csv_file = fopen(filename, "r");
 	int map_width = 0, map_height = 0;
 	int tile_width = 0, tile_height = 0;
 	int tile_count = 0;
@@ -3248,21 +3301,15 @@ static void parse_tmx(char *file_name)
 	int image_height = map_height * tile_height;
 
 	if (!m_args.map_none)
-	{		
+	{
 		write_map(image_width, image_height, tile_width, tile_height, 1, 1);
 	}
 }
 
-int main(int argc, char *argv[])
+int process_file()
 {
-	atexit(exit_handler);
+	printf("Processing '%s'...\n", m_args.out_filename != NULL ? m_args.out_filename : m_args.in_filename);
 	
-	// Parse program arguments.
-	if (!parse_args(argc, argv, &m_args))
-	{
-		exit(EXIT_FAILURE);
-	}
-
 	// Create file names for raw image file and, if separate, raw palette file.
 	create_filename(m_bitmap_filename, m_args.out_filename != NULL ? m_args.out_filename : m_args.in_filename, EXT_NXI, m_args.compress & COMPRESS_BITMAP);
 	
@@ -3288,10 +3335,12 @@ int main(int argc, char *argv[])
 	if (m_args.asm_mode > ASMMODE_NONE)
 	{
 		char asm_filename[256] = { 0 };
+		char *open_args = (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w");
+		char *asm_file = (m_args.asm_file != NULL ? m_args.asm_file : m_args.out_filename);
 		
-		create_filename(asm_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".asm", false);
+		create_filename(asm_filename,asm_file , ".asm", false);
 		
-		m_asm_file = fopen(asm_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
+		m_asm_file = fopen(asm_filename, open_args);
 		
 		if (asm_filename == NULL)
 		{
@@ -3307,18 +3356,18 @@ int main(int argc, char *argv[])
 		{
 			char header_filename[256] = { 0 };
 			
-			create_filename(header_filename, (m_args.asm_file != NULL ? m_args.asm_file : m_args.in_filename), ".h", false);
+			create_filename(header_filename, asm_file, ".h", false);
 			
-			m_header_file = fopen(header_filename, (m_args.asm_file != NULL && !m_args.asm_start ? "a" : "w"));
+			m_header_file = fopen(header_filename, open_args);
 			
-			if (header_filename == NULL)
+			if (m_header_file == NULL)
 			{
-				exit_with_msg("Can't create header file %s.\n", header_filename);
+				exit_with_msg("Can't create header file '%s' (%s).\n", header_filename, open_args);
 			}
 
 			if (m_args.asm_file == NULL || m_args.asm_start)
 			{
-				write_header_header(m_args.asm_file != NULL ? m_args.asm_file : m_args.out_filename);
+				write_header_header(asm_file);
 			}
 		}
 	}
@@ -3372,7 +3421,7 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		exit(EXIT_SUCCESS);
+		return 1;
 	}
 	
 	if (m_args.screen)
@@ -3387,7 +3436,7 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		exit(EXIT_SUCCESS);
+		return 1;
 	}
 	
 	process_tiles();
@@ -3425,9 +3474,14 @@ int main(int argc, char *argv[])
 				write_blocks();
 			}
 			
+			printf("Tile Offset = %d\n", m_args.tile_offset);
+			printf("Tile Palette = %d\n", m_args.tile_pal);
 			printf("Tile Count = %d\n", m_tile_count);
-				
-			write_tiles_sprites();
+			
+			if (!m_args.tile_none)
+			{
+				write_tiles_sprites();
+			}
 		}
 	}
 	
@@ -3437,6 +3491,97 @@ int main(int argc, char *argv[])
 		{
 			write_header_footer();
 		}
+	}
+	
+	return 1;
+}
+
+int main(int argc, char *argv[])
+{
+	atexit(exit_handler);
+
+	// Parse program arguments.
+	if (!parse_args(argc, argv, &m_args))
+	{
+		exit(EXIT_FAILURE);
+	}
+	
+	if (strstr(m_args.in_filename, "*"))
+	{
+		char **filename;
+		glob_t gstruct;
+		int count = 0;
+		int ret;
+		
+		ret = glob(m_args.in_filename, GLOB_ERR , NULL, &gstruct);
+		
+		// check for errors
+		if(ret != 0)
+		{
+			if(ret == GLOB_NOMATCH)
+				fprintf(stderr,"No matches\n");
+			else
+				fprintf(stderr,"Some kinda glob error\n");
+			
+			exit(EXIT_FAILURE);
+		}
+
+		// success, output found filenames
+		printf("Found %u filename matches\n", gstruct.gl_pathc);
+		filename = gstruct.gl_pathv;
+		
+		if (m_args.asm_start_auto)
+		{
+			m_args.asm_start = true;
+		}
+		
+		while(*filename)
+		{
+			m_args.in_filename = *filename;
+			m_args.out_filename = *filename;
+			
+			m_bank_section_index = 0;
+			
+			process_file();
+			close_all();
+			
+			filename++;
+			
+			if (m_args.tile_offset_auto)
+			{
+				m_args.tile_offset += m_tile_count;
+			}
+			
+			if (m_args.tile_pal_auto)
+			{
+				m_args.tile_pal++;
+			}
+			
+			if (m_args.asm_start_auto)
+			{
+				m_args.asm_start = false;
+			}
+			
+			if (++count == gstruct.gl_pathc-1)
+			{
+				if (m_args.asm_end_auto)
+				{	
+					m_args.asm_end = true;
+				}
+			}
+		}
+	}
+	else
+	{
+		process_file();
+	}
+
+	for (int i = 0; i < NUM_BANKS; i++)
+	{
+		if (m_bank_used[i] == 0)
+			continue;
+		
+		printf("BANK_%d = %d bytes used\n", i,  m_bank_used[i]);
 	}
 	
 	return 0;

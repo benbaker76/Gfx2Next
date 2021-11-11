@@ -38,7 +38,10 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-y|Get tile in Y order first. (Default is X order first)|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first)|
 |-tile-offset=n|Sets the starting tile offset to n tiles|
+|-tile-offset-auto|Adds tile offset when using wildcards|
 |-tile-pal=n|Sets the palette offset attribute to n|
+|-tile-pal-auto|Increments palette offset when using wildcards|
+|-tile-none|Don't save a tile file|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
 |-tiled-blank=n|Set the tile id of the blank tile|
 |-tiled-output|Outputs tileset .png and map data to Tiled .tmx format|
@@ -81,7 +84,9 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-asm-sjasm|Generate asm binary incbin file (SjASM format)|
 |-asm-file=&lt;name&gt;|Append asm and header output to &lt;name&gt;.asm and &lt;name&gt;.h|
 |-asm-start|Specifies the start of the asm and header data for appending|
+|-asm-start-auto|Sets start parameter for first item when using wildcards|
 |-asm-end|Specifies the end of the asm and header data for appending|
+|-asm-end-auto|Sets end parameter for first item when using wildcards|
 |-asm-sequence|Add sequence section for multi-bank spanning data|
 |-preview|Generate png preview file(s)|
 
