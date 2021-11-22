@@ -42,6 +42,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-pal=n|Sets the palette offset attribute to n|
 |-tile-pal-auto|Increments palette offset when using wildcards|
 |-tile-none|Don't save a tile file|
+|-tiled|Process file(s) in .tmx format|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
 |-tiled-blank=n|Set the tile id of the blank tile|
 |-tiled-output|Outputs tileset .png and map data to Tiled .tmx format|

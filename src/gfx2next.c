@@ -38,7 +38,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.2"
+#define VERSION						"1.1.3"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -267,6 +267,7 @@ typedef struct
 	int tile_pal;
 	bool tile_pal_auto;
 	bool tile_none;
+	bool tiled;
 	char *tiled_file;
 	int tiled_blank;
 	bool tiled_output;
@@ -318,6 +319,7 @@ static arguments_t m_args  =
 	.tile_pal = 0,
 	.tile_pal_auto = false,
 	.tile_none = false,
+	.tiled = false,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
 	.tiled_output = false,
@@ -398,6 +400,7 @@ static uint32_t m_block_count = 0;
 static uint32_t m_chunk_size = 0;
 
 static char m_bitmap_filename[256] = { 0 };
+static char m_tiled_filename[256] = { 0 };
 static char m_asm_labels[MAX_LABEL_COUNT][256] = { { 0 } };
 
 static FILE *m_bitmap_file = NULL;
@@ -828,6 +831,7 @@ static void print_usage(void)
 	printf("  -tile-pal=n             Sets the palette offset attribute to n\n");
 	printf("  -tile-pal-auto          Increments palette offset when using wildcards\n");
 	printf("  -tile-none              Don't save a tile file\n");
+	printf("  -tiled                  Process file(s) in .tmx format\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
 	printf("  -tiled-blank=n          Set the tile id of the blank tile\n");
 	printf("  -tiled-output           Outputs tile and map data to Tiled .tmx and .tsx format\n");
@@ -984,6 +988,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-none"))
 			{
 				m_args.tile_none = true;
+			}
+			else if (!strcmp(argv[i], "-tiled"))
+			{
+				m_args.tiled = true;
 			}
 			else if (!strncmp(argv[i], "-tiled-file=", 12))
 			{
@@ -2631,7 +2639,7 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 		}
 	}
 	
-	fprintf(p_tmx_file, "</data>\n");
+	fprintf(p_tmx_file, "  </data>\n");
 	fprintf(p_tmx_file, " </layer>\n");
 	fprintf(p_tmx_file, "</map>\n");
 
@@ -3220,7 +3228,9 @@ static bool get_str(char *line, char *name, char *string)
 		pch_s = pch + strlen(name) + 1;
 		if ((pch_e = strstr(pch_s, "\"")))
 		{
-			strncpy(string, pch_s, pch_e - pch_s);
+			uint32_t len = pch_e - pch_s;
+			strncpy(string, pch_s, len);
+			string[len] = '\0';
 			
 			return true;
 		}
@@ -3243,7 +3253,7 @@ static bool get_int(char *line, char *name, int *value)
 	return true;
 }
 
-static void parse_tmx(char *filename)
+static void parse_tmx(char *filename, char *tilemap_filename)
 {
 	char line[512], string[32];
 	FILE *csv_file = fopen(filename, "r");
@@ -3252,7 +3262,7 @@ static void parse_tmx(char *filename)
 	int tile_count = 0;
 	int first_gid = 0;
 	bool is_data = false;
-
+	
 	while (fgets(line, 512, csv_file))
 	{
 		if (strstr(line, "<map"))
@@ -3270,6 +3280,11 @@ static void parse_tmx(char *filename)
 			get_int(line, "firstgid=", &first_gid);
 			
 			continue;
+		}
+		
+		if (strstr(line, "<image"))
+		{
+			get_str(line, "source=", tilemap_filename);
 		}
 		
 		if (strstr(line, "<data"))
@@ -3318,15 +3333,28 @@ int process_file()
 		exit_with_msg("Input file and output file cannot have the same name (%s == %s).\n", m_args.in_filename, m_bitmap_filename);
 	}
 	
-	const char *p_in_filename = (const char *)m_args.in_filename;
+	const char *p_ext = strrchr((const char *)m_args.in_filename,'.');
 	
-	if ((p_in_filename = strrchr(m_args.in_filename,'.')) != NULL)
+	if (p_ext != NULL)
 	{
-		if (strcasecmp(p_in_filename, ".png") == 0)
+		if (strcasecmp(p_ext, ".tmx") == 0)
+		{
+			m_args.tiled = true;
+			
+			parse_tmx(m_args.in_filename, m_tiled_filename);
+			
+			m_args.in_filename = m_tiled_filename;
+			
+			printf("Processing '%s'...\n", m_args.in_filename);
+			
+			p_ext = strrchr(m_args.in_filename,'.');
+		}
+		
+		if (strcasecmp(p_ext, ".png") == 0)
 		{
 			read_png();
 		}
-		else
+		else if (strcasecmp(p_ext, ".bmp") == 0)
 		{
 			read_bitmap();
 		}
@@ -3445,9 +3473,9 @@ int process_file()
 	
 	if (m_args.tiled_file != NULL)
 	{
-		parse_tmx(m_args.tiled_file);
+		parse_tmx(m_args.tiled_file, m_tiled_filename);
 	}
-	else if (!m_args.map_none)
+	else if (!m_args.map_none && !m_args.tiled)
 	{
 		write_map(m_image_width, m_image_height, m_tile_width, m_tile_height, m_block_width, m_block_height);
 	}
@@ -3540,6 +3568,7 @@ int main(int argc, char *argv[])
 			m_args.in_filename = *filename;
 			m_args.out_filename = *filename;
 			
+			m_tile_count = 0;
 			m_bank_section_index = 0;
 			
 			process_file();
