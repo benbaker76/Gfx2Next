@@ -3175,13 +3175,13 @@ static void process_tiles()
 	
 	if (m_args.map_16bit)
 	{
-		if (m_tile_count >= 512)
-			printf("Warning tile count >= 512!\n");
+		if (m_tile_count > 512)
+			printf("Warning tile count > 512!\n");
 	}
 	else
 	{
-		if (m_tile_count >= 256)
-			printf("Warning tile count >= 256!\n");
+		if (m_tile_count > 256)
+			printf("Warning tile count > 256!\n");
 	}
 }
 
@@ -3420,7 +3420,7 @@ int process_file()
 			
 			m_args.in_filename = m_bitmap_filename;
 			
-			if (strlen(m_args.in_filename) != 0)
+			if (!m_args.tile_none && strlen(m_args.in_filename) != 0)
 			{
 				printf("Processing '%s'...\n", m_args.in_filename);
 			}
@@ -3545,7 +3545,10 @@ int process_file()
 		return 1;
 	}
 	
-	process_tiles();
+	if (!m_args.tile_none)
+	{
+		process_tiles();
+	}
 	
 	write_next_palette();
 	
