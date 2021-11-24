@@ -38,7 +38,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.3"
+#define VERSION						"1.1.4"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -108,6 +108,7 @@ int _CRT_glob = 0;
 #define EXT_NXI						".nxi"
 #define EXT_SCR						".scr"
 #define EXT_TMX						".tmx"
+#define EXT_TSX						".tsx"
 
 static void write_easter_egg();
 static uint8_t attributes_to_tiled_flags(uint8_t attributes);
@@ -268,6 +269,7 @@ typedef struct
 	bool tile_pal_auto;
 	bool tile_none;
 	bool tiled;
+	bool tiled_tsx;
 	char *tiled_file;
 	int tiled_blank;
 	bool tiled_output;
@@ -320,6 +322,7 @@ static arguments_t m_args  =
 	.tile_pal_auto = false,
 	.tile_none = false,
 	.tiled = false,
+	.tiled_tsx = false,
 	.tiled_file = NULL,
 	.tiled_blank = 0,
 	.tiled_output = false,
@@ -400,7 +403,6 @@ static uint32_t m_block_count = 0;
 static uint32_t m_chunk_size = 0;
 
 static char m_bitmap_filename[256] = { 0 };
-static char m_tiled_filename[256] = { 0 };
 static char m_asm_labels[MAX_LABEL_COUNT][256] = { { 0 } };
 
 static FILE *m_bitmap_file = NULL;
@@ -832,6 +834,7 @@ static void print_usage(void)
 	printf("  -tile-pal-auto          Increments palette offset when using wildcards\n");
 	printf("  -tile-none              Don't save a tile file\n");
 	printf("  -tiled                  Process file(s) in .tmx format\n");
+	printf("  -tiled-tsx              Outputs the tileset data as a separate .tsx file\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
 	printf("  -tiled-blank=n          Set the tile id of the blank tile\n");
 	printf("  -tiled-output           Outputs tile and map data to Tiled .tmx and .tsx format\n");
@@ -992,6 +995,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tiled"))
 			{
 				m_args.tiled = true;
+			}
+			else if (!strcmp(argv[i], "-tiled-tsx"))
+			{
+				m_args.tiled_tsx = true;
 			}
 			else if (!strncmp(argv[i], "-tiled-file=", 12))
 			{
@@ -2455,6 +2462,9 @@ static void write_tiles_sprites()
 	const char *extension = (m_args.sprites ? EXT_SPR : EXT_NXT);
 	bool use_compression = m_args.compress &  (m_args.sprites ? COMPRESS_SPRITES : COMPRESS_TILES);
 
+	if (data_size == 0)
+		return;
+
 	if (m_args.bank_size > BANKSIZE_NONE)
 	{
 		m_bank_count = 0;
@@ -2462,6 +2472,9 @@ static void write_tiles_sprites()
 		while (data_size > 0)
 		{
 			uint32_t bank_size = (data_size < m_bank_size ? data_size : m_bank_size);
+			
+			if (bank_size == 0)
+				break;
 			
 			create_series_filename(out_filename, m_args.out_filename, extension, use_compression, m_bank_count);
 			
@@ -2576,12 +2589,13 @@ static void write_blocks()
 	fclose(p_file);
 }
 
-static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
+static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height, bool use_tsx)
 {
-	char name[256] = { 0 }, png_filename[256] = { 0 }, tmx_filename[256] = { 0 };
+	char name[256] = { 0 }, png_filename[256] = { 0 }, tmx_filename[256] = { 0 }, tsx_filename[256] = { 0 };
 	create_name(name, m_args.out_filename);
 	create_filename(png_filename, m_args.out_filename, "_tileset.png", false);
 	create_filename(tmx_filename, m_args.out_filename, EXT_TMX, false);
+	create_filename(tsx_filename, m_args.out_filename, EXT_TSX, false);
 	FILE *p_tmx_file = fopen(tmx_filename, "w");
 	
 	uint32_t tile_count = MIN(m_tile_count, m_args.map_16bit ? 512 : 256);
@@ -2596,9 +2610,17 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	
 	fprintf(p_tmx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 	fprintf(p_tmx_file, "<map version=\"1.5\" tiledversion=\"1.7.0\" orientation=\"orthogonal\" renderorder=\"right-down\" width=\"%d\" height=\"%d\" tilewidth=\"%d\" tileheight=\"%d\" infinite=\"0\" nextlayerid=\"2\" nextobjectid=\"1\">\n", map_width, map_height, tile_width, tile_height);
-	fprintf(p_tmx_file, "<tileset firstgid=\"%d\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", first_gid, name, tile_width, tile_height, tile_count, bitmap_width / tile_width);
-	fprintf(p_tmx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
-	fprintf(p_tmx_file, "</tileset>\n");
+	
+	if (use_tsx)
+	{
+		fprintf(p_tmx_file, " <tileset firstgid=\"%d\" source=\"%s\"/>\n", first_gid, tsx_filename);
+	}
+	else
+	{
+		fprintf(p_tmx_file, "<tileset firstgid=\"%d\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", first_gid, name, tile_width, tile_height, tile_count, bitmap_width / tile_width);
+		fprintf(p_tmx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
+		fprintf(p_tmx_file, "</tileset>\n");
+	}
 	fprintf(p_tmx_file, " <layer id=\"1\" name=\"Tile Layer 1\" width=\"%d\" height=\"%d\">\n", map_width, map_height);
 	fprintf(p_tmx_file, "  <data encoding=\"csv\">\n");
 
@@ -2644,6 +2666,18 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	fprintf(p_tmx_file, "</map>\n");
 
 	fclose(p_tmx_file);
+	
+	if (use_tsx)
+	{
+		FILE *p_tsx_file = fopen(tsx_filename, "w");
+		
+		fprintf(p_tsx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+		fprintf(p_tsx_file, "<tileset version=\"1.4\" tiledversion=\"1.4.1\" name=\"%s\" tilewidth=\"%d\" tileheight=\"%d\" tilecount=\"%d\" columns=\"%d\">\n", name, tile_width, tile_height, tile_count, bitmap_width / tile_width);
+		fprintf(p_tsx_file, " <image source=\"%s\" width=\"%d\" height=\"%d\"/>\n", png_filename, bitmap_width, bitmap_height);
+		fprintf(p_tsx_file, "</tileset>\n");
+
+		fclose(p_tsx_file);
+	}
 }
 
 static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
@@ -2698,7 +2732,7 @@ static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile
 	
 	if (m_args.tiled_output)
 	{
-		write_tiled_files(image_width, image_height, tile_width, tile_height, block_width, block_height);
+		write_tiled_files(image_width, image_height, tile_width, tile_height, block_width, block_height, m_args.tiled_tsx);
 	}
 }
 
@@ -3253,17 +3287,45 @@ static bool get_int(char *line, char *name, int *value)
 	return true;
 }
 
-static void parse_tmx(char *filename, char *tilemap_filename)
+static void parse_tsx(char *filename, char *bitmap_filename)
+{
+	char line[512];
+	FILE *tsx_file = fopen(filename, "r");
+	
+	if (tsx_file == NULL)
+	{
+		exit_with_msg("Can't open tsx file %s.\n", filename);
+	}
+	
+	while (fgets(line, 512, tsx_file))
+	{
+		if (strstr(line, "<image"))
+		{
+			get_str(line, "source=", bitmap_filename);
+		}
+	}
+	
+	fclose(tsx_file);
+}
+
+static void parse_tmx(char *filename, char *bitmap_filename)
 {
 	char line[512], string[32];
-	FILE *csv_file = fopen(filename, "r");
+	char tileset_filename[256] = { 0 };
+	FILE *tmx_file = fopen(filename, "r");
+	
+	if (tmx_file == NULL)
+	{
+		exit_with_msg("Can't open tmx file %s.\n", filename);
+	}
+	
 	int map_width = 0, map_height = 0;
 	int tile_width = 0, tile_height = 0;
 	int tile_count = 0;
 	int first_gid = 0;
 	bool is_data = false;
 	
-	while (fgets(line, 512, csv_file))
+	while (fgets(line, 512, tmx_file))
 	{
 		if (strstr(line, "<map"))
 		{
@@ -3278,13 +3340,19 @@ static void parse_tmx(char *filename, char *tilemap_filename)
 		if (strstr(line, "<tileset"))
 		{
 			get_int(line, "firstgid=", &first_gid);
+			get_str(line, "source=", tileset_filename);
+			
+			if (strlen(tileset_filename) != 0)
+			{
+				parse_tsx(tileset_filename, bitmap_filename);
+			}
 			
 			continue;
 		}
 		
 		if (strstr(line, "<image"))
 		{
-			get_str(line, "source=", tilemap_filename);
+			get_str(line, "source=", bitmap_filename);
 		}
 		
 		if (strstr(line, "<data"))
@@ -3311,6 +3379,8 @@ static void parse_tmx(char *filename, char *tilemap_filename)
 		
 		parse_tile(line, first_gid, &tile_count);
 	}
+	
+	fclose(tmx_file);
 	
 	int image_width = map_width * tile_width;
 	int image_height = map_height * tile_height;
@@ -3341,11 +3411,19 @@ int process_file()
 		{
 			m_args.tiled = true;
 			
-			parse_tmx(m_args.in_filename, m_tiled_filename);
+			parse_tmx(m_args.in_filename, m_bitmap_filename);
 			
-			m_args.in_filename = m_tiled_filename;
+			if (m_args.out_filename == NULL || m_args.in_filename == m_args.out_filename)
+			{
+				m_args.out_filename = m_bitmap_filename;
+			}
 			
-			printf("Processing '%s'...\n", m_args.in_filename);
+			m_args.in_filename = m_bitmap_filename;
+			
+			if (strlen(m_args.in_filename) != 0)
+			{
+				printf("Processing '%s'...\n", m_args.in_filename);
+			}
 			
 			p_ext = strrchr(m_args.in_filename,'.');
 		}
@@ -3473,7 +3551,9 @@ int process_file()
 	
 	if (m_args.tiled_file != NULL)
 	{
-		parse_tmx(m_args.tiled_file, m_tiled_filename);
+		char bitmap_filename[256] = { 0 };
+		
+		parse_tmx(m_args.tiled_file, bitmap_filename);
 	}
 	else if (!m_args.map_none && !m_args.tiled)
 	{
@@ -3492,9 +3572,8 @@ int process_file()
 			
 			write_tiles_sprites();
 		}
-		else
+		else if (!m_args.tile_none)
 		{
-			
 			if (m_block_count > 0)
 			{
 				printf("Block Count = %d\n", m_block_count);
@@ -3506,10 +3585,7 @@ int process_file()
 			printf("Tile Palette = %d\n", m_args.tile_pal);
 			printf("Tile Count = %d\n", m_tile_count);
 			
-			if (!m_args.tile_none)
-			{
-				write_tiles_sprites();
-			}
+			write_tiles_sprites();
 		}
 	}
 	
