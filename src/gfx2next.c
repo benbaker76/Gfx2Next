@@ -287,6 +287,7 @@ typedef struct
 	bool pal_min;
 	bool pal_full;
 	bool pal_std;
+	bool pal_rgb332;
 	bool zx0_back;
 	bool zx0_quick;
 	compress_t compress;
@@ -340,6 +341,7 @@ static arguments_t m_args  =
 	.pal_min = false,
 	.pal_full = false,
 	.pal_std = false,
+	.pal_rgb332 = false,
 	.zx0_back = false,
 	.zx0_quick = false,
 	.compress = COMPRESS_NONE,
@@ -715,7 +717,15 @@ static void create_next_palette(color_mode_t color_mode)
 		uint8_t rgb332 = (uint8_t) (rgb333 >> 1);
 		uint8_t b1 = (uint8_t) (rgb333 & 1);
 
-		m_next_palette[i] = (b1 << 8) | rgb332;
+		// Access as bytes for 8-bit palette
+		if (m_args.pal_rgb332)
+		{
+			((uint8_t *) m_next_palette)[i] = rgb332;
+		}
+		else
+		{
+			m_next_palette[i] = (b1 << 8) | rgb332;
+		}
 	}
 } 
 
@@ -806,9 +816,7 @@ static void shrink_to_4bit_palette(void)
 
 static void print_usage(void)
 {
-	char buffer[256];
-	sprintf(buffer, "gfx2next v%s\n", VERSION);
-	printf(buffer);
+	printf("gfx2next v%s\n", VERSION);
 	printf("Converts an uncompressed 8-bit BMP or PNG file to the Sinclair ZX Spectrum Next graphics format(s).\n");
 	printf("Usage:\n");
 	printf("  gfx2next [options] <srcfile> [<dstfile>]\n");
@@ -866,6 +874,7 @@ static void print_usage(void)
 	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors\n");
 	printf("                          This option is ignored if the -colors-4bit option is given\n");
 	printf("  -pal-none               No raw palette is created\n");
+	printf("  -pal-rgb332             Force 8-bit palette output\n");
 	printf("  -zx0                    Compress all data using zx0\n");
 	printf("  -zx0-screen             Compress screen data using zx0\n");
 	printf("  -zx0-bitmap             Compress bitmap data using zx0\n");
@@ -1144,6 +1153,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.pal_mode = PALMODE_NONE;
 			}
+			else if (!strcmp(argv[i], "-pal-rgb332"))
+			{
+				m_args.pal_rgb332 = true;
+			}
 			else if (!strcmp(argv[i], "-zx0"))
 			{
 				m_args.compress = COMPRESS_ALL;
@@ -1301,6 +1314,7 @@ static void create_filename(char *out_filename, const char *in_filename, const c
 
 static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression, int index)
 {
+	char temp_filename[256] = { 0 };
 	char *start = strrchr(in_filename, DIR_SEPERATOR_CHAR);
 	
 	strcpy(out_filename, start == NULL ? in_filename : start + 1);
@@ -1308,8 +1322,10 @@ static void create_series_filename(char *out_filename, const char *in_filename, 
 	char *end = strchr(out_filename, '.');
 	out_filename[end == NULL ? strlen(out_filename) : (int)(end - out_filename)] = '\0';
 
-	snprintf(out_filename, 255, "%s_%d%s", out_filename, index, extension);
+	snprintf(temp_filename, 255, "%s_%d%s", out_filename, index, extension);
 	
+	strcpy(out_filename, temp_filename);
+
 	if (use_compression)
 		strcat(out_filename, EXT_ZX0);
 }
@@ -2061,6 +2077,12 @@ static void write_next_palette()
 {
 	// Write the raw palette either prepended to the raw image file or as a separate file.
 	uint32_t next_palette_size = m_args.colors_4bit && !m_args.pal_full ? NEXT_4BIT_PALETTE_SIZE : NEXT_PALETTE_SIZE;
+
+	// 8-bit palette is half the regular palette size
+	if (m_args.pal_rgb332)
+	{
+		next_palette_size /= 2;
+	}
 
 	if (m_args.pal_mode == PALMODE_EMBEDDED)
 	{
@@ -3634,7 +3656,7 @@ int main(int argc, char *argv[])
 		}
 
 		// success, output found filenames
-		printf("Found %u filename matches\n", gstruct.gl_pathc);
+		printf("Found %lu filename matches\n", gstruct.gl_pathc);
 		filename = gstruct.gl_pathv;
 		
 		if (m_args.asm_start_auto)
