@@ -72,6 +72,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-pal-full|Generate the full palette for -colors-4bit mode|
 |-pal-std|If specified, convert to the Spectrum Next standard palette colors. This option is ignored if the -colors-4bit option is given|
 |-pal-none|No raw palette is created|
+|-pal-rgb332|Force 8-bit palette output|
 |-zx0|Compress all data using zx0|
 |-zx0-screen|Compress screen data using zx0|
 |-zx0-bitmap|Compress bitmap data using zx0|
