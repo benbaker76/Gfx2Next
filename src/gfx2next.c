@@ -1314,6 +1314,7 @@ static void create_filename(char *out_filename, const char *in_filename, const c
 
 static void create_series_filename(char *out_filename, const char *in_filename, const char *extension, bool use_compression, int index)
 {
+	char temp_filename[256] = { 0 };
 	char *start = strrchr(in_filename, DIR_SEPERATOR_CHAR);
 	
 	strcpy(out_filename, start == NULL ? in_filename : start + 1);
@@ -1321,8 +1322,10 @@ static void create_series_filename(char *out_filename, const char *in_filename, 
 	char *end = strchr(out_filename, '.');
 	out_filename[end == NULL ? strlen(out_filename) : (int)(end - out_filename)] = '\0';
 
-	snprintf(out_filename, 255, "%s_%d%s", out_filename, index, extension);
+	snprintf(temp_filename, 255, "%s_%d%s", out_filename, index, extension);
 	
+	strcpy(out_filename, temp_filename);
+
 	if (use_compression)
 		strcat(out_filename, EXT_ZX0);
 }
