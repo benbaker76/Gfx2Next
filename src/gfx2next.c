@@ -38,7 +38,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.4"
+#define VERSION						"1.1.5"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
