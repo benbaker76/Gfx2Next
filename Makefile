@@ -14,7 +14,7 @@ ZIP := zip -r -q
 
 all:
 	$(MKDIR) bin
-	gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c
+	gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c -lm
 
 distro:
 	$(MAKE) clean all
