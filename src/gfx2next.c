@@ -3656,7 +3656,7 @@ int main(int argc, char *argv[])
 		}
 
 		// success, output found filenames
-		printf("Found %lu filename matches\n", gstruct.gl_pathc);
+		printf("Found %u filename matches\n", (unsigned) gstruct.gl_pathc);
 		filename = gstruct.gl_pathv;
 		
 		if (m_args.asm_start_auto)
