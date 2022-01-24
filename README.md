@@ -94,22 +94,24 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-preview|Generate png preview file(s)|
 
 ## Examples
-* gfx2next.exe -tile-norotate -map-16bit -bank-16k -asm-z80asm -bank-sections=rodata_user,rodata_user,BANK_52,BANK_53,rodata_user -preview tiles.png
-* gfx2next.exe -tile-norotate -map-16bit -colors-4bit -asm-z80asm -bank-sections=rodata_user,BANK_17,BANK_17 tiles.png
-* gfx2next.exe -sprites -colors-4bit -pal-min -pal-ext -preview sprites.png
-* gfx2next.exe -bitmap -pal-std -preview titlescreen.png
-* gfx2next.exe -tiled-file=map.tmx -tile-norotate -map-16bit -pal-none -preview map_tileset.png
-* gfx2next.exe -tiled-output -tile-norotate -map-16bit -preview map.png
+* gfx2next -tile-norotate -map-16bit -bank-16k -asm-z80asm -bank-sections=rodata_user,rodata_user,BANK_52,BANK_53,rodata_user -preview tiles.png
+* gfx2next -tile-norotate -map-16bit -colors-4bit -asm-z80asm -bank-sections=rodata_user,BANK_17,BANK_17 tiles.png
+* gfx2next -sprites -colors-4bit -pal-min -pal-ext -preview sprites.png
+* gfx2next -bitmap -pal-std -preview titlescreen.png
+* gfx2next -tiled-file=map.tmx -tile-norotate -map-16bit -pal-none -preview map_tileset.png
+* gfx2next -tiled-output -tile-norotate -map-16bit -preview map.png
+* gfx2next -tiled -tiled-blank=0 -tile-none -pal-none -zx0 *.tmx
 
 ## Source code
 https://github.com/headkaze/Gfx2Next
 
 ## Compiling
-gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c
+gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c -lm
 
 ## Credits
 
 * Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
+* [Craig Hackney](https://github.com/iratahack) - Added -pal-rgb332 option and fixes
 * Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
 * Jim Bagley - NextGrab / MapGrabber
 * Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
