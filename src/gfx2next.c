@@ -1335,7 +1335,7 @@ static void to_upper(char *filename)
 	int i = 0;
 	while(m_bitmap_filename[i])
 	{
-		filename[i] = toupper(filename[i]);
+		filename[i] = toupper((int) filename[i]);
 		i++;
 	}
 }
@@ -3470,7 +3470,7 @@ int process_file()
 		
 		m_asm_file = fopen(asm_filename, open_args);
 		
-		if (asm_filename == NULL)
+		if (m_asm_file == NULL)
 		{
 			exit_with_msg("Can't create asm file %s.\n", asm_filename);
 		}
