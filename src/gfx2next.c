@@ -93,6 +93,7 @@ int _CRT_glob = 0;
 #define RGB888(r8,g8,b8)			((r8 << 16) | (g8 << 8) | b8)
 #define RGB332(r3,g3,b2)			((r3 << 5) | (g3 << 2) | b2)
 #define RGB333(r3,g3,b3)			((r3 << 6) | (g3 << 3) | b3)
+#define BGR222(r2,g2,b2)			((b2 << 4) | (g2 << 2) | r2)
 
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
 #define MAX(x,y)					((x) > (y) ? (x) : (y))
@@ -288,6 +289,7 @@ typedef struct
 	bool pal_full;
 	bool pal_std;
 	bool pal_rgb332;
+	bool pal_bgr222;
 	bool zx0_back;
 	bool zx0_quick;
 	compress_t compress;
@@ -342,6 +344,7 @@ static arguments_t m_args  =
 	.pal_full = false,
 	.pal_std = false,
 	.pal_rgb332 = false,
+	.pal_bgr222 = false,
 	.zx0_back = false,
 	.zx0_quick = false,
 	.compress = COMPRESS_NONE,
@@ -539,6 +542,17 @@ static uint16_t rgb888_to_rgb332(uint32_t rgb888, color_mode_t color_mode)
 	return RGB332(r3, g3, b2);
 }
 
+static uint16_t rgb888_to_bgr222(uint32_t rgb888, color_mode_t color_mode)
+{
+	uint8_t r8 = rgb888 >> 16;
+	uint8_t g8 = rgb888 >> 8;
+	uint8_t b8 = rgb888;
+	uint8_t r2 = c8_to_c2(r8, color_mode);
+	uint8_t g2 = c8_to_c2(g8, color_mode);
+	uint8_t b2 = c8_to_c2(b8, color_mode);
+	return BGR222(r2, g2, b2);
+}
+
 static uint16_t rgb888_to_rgb333(uint32_t rgb888, color_mode_t color_mode)
 {
 	uint8_t r8 = rgb888 >> 16;
@@ -698,6 +712,22 @@ static void convert_standard_palette(color_mode_t color_mode)
 		m_palette[i * 4 + 1] = rgb888 >> 16;
 		m_palette[i * 4 + 2] = rgb888 >> 8;
 		m_palette[i * 4 + 3] = rgb888;
+	}
+}
+
+static void create_sms_palette(color_mode_t color_mode)
+{
+	// Create the SMS palette.
+	// The RGB888 colors in the BMP palette are converted to BRG222 colors.
+	for (int i = 0; i < 16; i++)
+	{
+		// Palette contains ARGB colors.
+		uint8_t r8 = m_palette[i * 4 + 1];
+		uint8_t g8 = m_palette[i * 4 + 2];
+		uint8_t b8 = m_palette[i * 4 + 3];
+		uint8_t bgr222 = rgb888_to_bgr222(RGB888(r8, g8, b8), color_mode);
+
+		((uint8_t *) m_next_palette)[i] = bgr222;
 	}
 }
 
@@ -1156,6 +1186,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-pal-rgb332"))
 			{
 				m_args.pal_rgb332 = true;
+			}
+			else if (!strcmp(argv[i], "-pal-bgr222"))
+			{
+				m_args.pal_bgr222 = true;
 			}
 			else if (!strcmp(argv[i], "-zx0"))
 			{
@@ -2079,7 +2113,7 @@ static void write_next_palette()
 	uint32_t next_palette_size = m_args.colors_4bit && !m_args.pal_full ? NEXT_4BIT_PALETTE_SIZE : NEXT_PALETTE_SIZE;
 
 	// 8-bit palette is half the regular palette size
-	if (m_args.pal_rgb332)
+	if (m_args.pal_rgb332 || m_args.pal_bgr222)
 	{
 		next_palette_size /= 2;
 	}
@@ -3527,7 +3561,14 @@ int process_file()
 	}
 	else
 	{
-		create_next_palette(m_args.color_mode);
+		if (m_args.pal_bgr222)
+		{
+			create_sms_palette(m_args.color_mode);
+		}
+		else
+		{
+			create_next_palette(m_args.color_mode);
+		}
 	}
 	
 	read_next_image();
