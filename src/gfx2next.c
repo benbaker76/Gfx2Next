@@ -1038,6 +1038,7 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-planar4"))
 			{
 				m_args.tile_planar4 = true;
+				m_args.colors_4bit = true;
 			}
 			else if (!strcmp(argv[i], "-tiled"))
 			{
