@@ -93,7 +93,7 @@ int _CRT_glob = 0;
 #define RGB888(r8,g8,b8)			((r8 << 16) | (g8 << 8) | b8)
 #define RGB332(r3,g3,b2)			((r3 << 5) | (g3 << 2) | b2)
 #define RGB333(r3,g3,b3)			((r3 << 6) | (g3 << 3) | b3)
-#define BGR222(r2,g2,b2)			((b2 << 4) | (g2 << 2) | r2)
+#define BGR222(b2,g2,r2)			((b2 << 4) | (g2 << 2) | r2)
 
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
 #define MAX(x,y)					((x) > (y) ? (x) : (y))
@@ -269,6 +269,7 @@ typedef struct
 	int tile_pal;
 	bool tile_pal_auto;
 	bool tile_none;
+	bool tile_planar4;
 	bool tiled;
 	bool tiled_tsx;
 	char *tiled_file;
@@ -324,6 +325,7 @@ static arguments_t m_args  =
 	.tile_pal = 0,
 	.tile_pal_auto = false,
 	.tile_none = false,
+	.tile_planar4 = false,
 	.tiled = false,
 	.tiled_tsx = false,
 	.tiled_file = NULL,
@@ -550,7 +552,7 @@ static uint16_t rgb888_to_bgr222(uint32_t rgb888, color_mode_t color_mode)
 	uint8_t r2 = c8_to_c2(r8, color_mode);
 	uint8_t g2 = c8_to_c2(g8, color_mode);
 	uint8_t b2 = c8_to_c2(b8, color_mode);
-	return BGR222(r2, g2, b2);
+	return BGR222(b2, g2, r2);
 }
 
 static uint16_t rgb888_to_rgb333(uint32_t rgb888, color_mode_t color_mode)
@@ -871,6 +873,7 @@ static void print_usage(void)
 	printf("  -tile-pal=n             Sets the palette offset attribute to n\n");
 	printf("  -tile-pal-auto          Increments palette offset when using wildcards\n");
 	printf("  -tile-none              Don't save a tile file\n");
+	printf("  -tile-planar4           Output tiles in planar (4 planes) rather than chunky format\n");
 	printf("  -tiled                  Process file(s) in .tmx format\n");
 	printf("  -tiled-tsx              Outputs the tileset data as a separate .tsx file\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
@@ -904,7 +907,8 @@ static void print_usage(void)
 	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors\n");
 	printf("                          This option is ignored if the -colors-4bit option is given\n");
 	printf("  -pal-none               No raw palette is created\n");
-	printf("  -pal-rgb332             Force 8-bit palette output\n");
+	printf("  -pal-rgb332             Output palette in RGB332 (8-bit) format\n");
+	printf("  -pal-bgr222             Output palette in BGR222 (8-bit) format. Bits 7-6 are unused\n");
 	printf("  -zx0                    Compress all data using zx0\n");
 	printf("  -zx0-screen             Compress screen data using zx0\n");
 	printf("  -zx0-bitmap             Compress bitmap data using zx0\n");
@@ -1030,6 +1034,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-none"))
 			{
 				m_args.tile_none = true;
+			}
+			else if (!strcmp(argv[i], "-tile-planar4"))
+			{
+				m_args.tile_planar4 = true;
 			}
 			else if (!strcmp(argv[i], "-tiled"))
 			{
@@ -2921,6 +2929,18 @@ static match_t check_tile_rotate(int i)
 	return match;
 }
 
+void pix2Planar(uint8_t data, uint8_t *planes)
+{
+	// Planes 0-3
+	for (int plane = 0; plane < 4; plane++)
+	{
+		planes[plane] <<= 1;
+		planes[plane] &= 0xfe;
+		planes[plane] |= (data & 0x01);
+		data >>= 1;
+	}
+}
+
 static int get_tile(int tx, int ty, uint8_t *attributes)
 {
 	if (m_args.debug)
@@ -2981,45 +3001,77 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 	{
 		for (int y = 0; y < m_tile_height; y++)
 		{
+			int tile_size = m_tile_size * m_tile_count;
+			int ti = (tile_size + y * m_tile_width)/2;
+			uint8_t planes[4];
 			if (m_args.debug)
 				printf("\n%04x: ", y);
 			
-			for (int x = 0; x < m_tile_width; x++)
+			if (m_args.tile_planar4)
 			{
-				int tile_size = m_tile_size * m_tile_count;
-				int ti = tile_size + y * m_tile_width + x;
-				int px = tx + x, py = ty + y;
-				int index = py * m_image_width + px;
-				
-				if (px < 0 || px >= m_image_width || py < 0 || py >= m_image_height)
-					continue;
-				
-				uint8_t pix = m_next_image[index];
-				
-				if (m_args.debug)
+				if (m_tile_width != 8)
 				{
-					printf("%02x ", pix);
+					exit_with_msg("Planar4 output only supports 8 pixel wide tiles.\n");
 				}
-				
-				if (m_args.colors_4bit)
+				for (int x = 0; x < m_tile_width; x++)
 				{
-					if (ti & 1)
+					int px = tx + x, py = ty + y;
+					int index = py * m_image_width + px;
+					
+					if (px < 0 || px >= m_image_width || py < 0 || py >= m_image_height)
+						continue;
+					
+					if (m_args.debug)
 					{
-						m_tiles[ti >> 1] |= (pix & 0xf);
+						printf("%02x ", m_next_image[index]);
+					}
+					
+					pix2Planar(m_next_image[index], planes);
+				}
+				for (int n=0; n<4; n++)
+				{
+					m_tiles[ti+n] = planes[n];
+				}
+			}
+			else
+			{
+				for (int x = 0; x < m_tile_width; x++)
+				{
+					int tile_size = m_tile_size * m_tile_count;
+					int ti = tile_size + y * m_tile_width + x;
+					int px = tx + x, py = ty + y;
+					int index = py * m_image_width + px;
+					
+					if (px < 0 || px >= m_image_width || py < 0 || py >= m_image_height)
+						continue;
+					
+					uint8_t pix = m_next_image[index];
+					
+					if (m_args.debug)
+					{
+						printf("%02x ", pix);
+					}
+					
+					if (m_args.colors_4bit)
+					{
+						if (ti & 1)
+						{
+							m_tiles[ti >> 1] |= (pix & 0xf);
+						}
+						else
+						{
+							m_tiles[ti >> 1] = (pix << 4) & 0xf0;
+						}
+
+						if (m_chunk_size >> 4)
+						{
+							*attributes = (pix & 0xf0);
+						}
 					}
 					else
 					{
-						m_tiles[ti >> 1] = (pix << 4) & 0xf0;
+						m_tiles[ti] = pix;
 					}
-					
-					if (m_chunk_size >> 4)
-					{
-						*attributes = (pix & 0xf0);
-					}
-				}
-				else
-				{
-					m_tiles[ti] = pix;
 				}
 			}
 		}

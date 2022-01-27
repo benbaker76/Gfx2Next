@@ -42,6 +42,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-pal=n|Sets the palette offset attribute to n|
 |-tile-pal-auto|Increments palette offset when using wildcards|
 |-tile-none|Don't save a tile file|
+|-tile-planar4|Output tiles in planar (4 planes) rather than chunky format|
 |-tiled|Process file(s) in .tmx format|
 |-tiled-tsx|Outputs the tileset data as a separate .tsx file|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
