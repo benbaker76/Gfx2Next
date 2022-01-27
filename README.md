@@ -34,6 +34,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tiles-file=&lt;filename&gt;|Load tiles from file in .nxt format|
 |-tile-size=XxY|Sets tile size to X x Y|
 |-tile-norepeat|Remove repeating tiles|
+|-tile-nomirror|Remove repeating and mirrored tiles|
 |-tile-norotate|Remove repeating, rotating and mirrored tiles|
 |-tile-y|Get tile in Y order first. (Default is X order first)|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first)|
