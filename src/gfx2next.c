@@ -261,6 +261,7 @@ typedef struct
 	bool sprites;
 	char *tiles_file;
 	bool tile_norepeat;
+	bool tile_nomirror;
 	bool tile_norotate;
 	bool tile_y;
 	bool tile_ldws;
@@ -317,6 +318,7 @@ static arguments_t m_args  =
 	.sprites = false,
 	.tiles_file = NULL,
 	.tile_norepeat = false,
+	.tile_nomirror = false,
 	.tile_norotate = false,
 	.tile_y = false,
 	.tile_ldws = false,
@@ -865,6 +867,7 @@ static void print_usage(void)
 	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format\n");
 	printf("  -tile-size=XxY          Sets tile size to X x Y\n");
 	printf("  -tile-norepeat          Remove repeating tiles\n");
+	printf("  -tile-nomirror          Remove repeating and mirrored tiles");
 	printf("  -tile-norotate          Remove repeating, rotating and mirrored tiles\n");
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
@@ -1002,6 +1005,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-norepeat"))
 			{
 				m_args.tile_norepeat = true;
+			}
+			else if (!strcmp(argv[i], "-tile-nomirror"))
+			{
+				m_args.tile_nomirror = true;
 			}
 			else if (!strcmp(argv[i], "-tile-norotate"))
 			{
@@ -2518,6 +2525,42 @@ static void write_next_bitmap()
 	}
 }
 
+// Convert 4-bit chunky to planar
+void c2p(uint8_t *source, uint32_t size)
+{
+	uint8_t	planes[4];
+	// 4 bytes is 8 pixels
+	for (int n=0; n<size; n+=4)
+	{
+		// 8-pixels at a time
+		for (int pixel = 0; pixel < 8; pixel++)
+		{
+			unsigned char nibble = source[pixel >> 1];
+
+			// Check for upper nibble
+			if ((pixel & 1) == 0)
+				nibble >>= 4;
+
+			// Planes 0-3
+			for (int plane = 0; plane < 4; plane++)
+			{
+				planes[plane] <<= 1;
+				planes[plane] &= 0xfe;
+				planes[plane] |= (nibble & 0x01);
+				nibble >>= 1;
+			}
+		}
+
+		// Copy the newly created plane data back
+		for (int n=0; n<4; n++)
+		{
+			source[n] = planes[n];
+		}
+
+		source += 4;
+	}
+}
+
 static void write_tiles_sprites()
 {
 	char out_filename[256] = { 0 };
@@ -2529,6 +2572,12 @@ static void write_tiles_sprites()
 
 	if (data_size == 0)
 		return;
+
+	if (m_args.tile_planar4)
+	{
+		// Convert 4-bit chunky to planar
+		c2p(m_tiles, data_size);
+	}
 
 	if (m_args.bank_size > BANKSIZE_NONE)
 	{
@@ -2915,7 +2964,7 @@ static match_t check_tile_rotate(int i)
 	
 	if (!(match & MATCH_ANY))
 	{
-		if (match_rot & MATCH_ANY)
+		if ((match_rot & MATCH_ANY) && (!m_args.tile_nomirror))
 		{
 			match = match_rot;
 		}
@@ -2928,18 +2977,6 @@ static match_t check_tile_rotate(int i)
 	}
 	
 	return match;
-}
-
-void pix2Planar(uint8_t data, uint8_t *planes)
-{
-	// Planes 0-3
-	for (int plane = 0; plane < 4; plane++)
-	{
-		planes[plane] <<= 1;
-		planes[plane] &= 0xfe;
-		planes[plane] |= (data & 0x01);
-		data >>= 1;
-	}
 }
 
 static int get_tile(int tx, int ty, uint8_t *attributes)
@@ -3002,77 +3039,44 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 	{
 		for (int y = 0; y < m_tile_height; y++)
 		{
-			int tile_size = m_tile_size * m_tile_count;
-			int ti = (tile_size + y * m_tile_width)/2;
-			uint8_t planes[4];
 			if (m_args.debug)
 				printf("\n%04x: ", y);
-			
-			if (m_args.tile_planar4)
+			for (int x = 0; x < m_tile_width; x++)
 			{
-				if (m_tile_width != 8)
+				int tile_size = m_tile_size * m_tile_count;
+				int ti = tile_size + y * m_tile_width + x;
+				int px = tx + x, py = ty + y;
+				int index = py * m_image_width + px;
+				
+				if (px < 0 || px >= m_image_width || py < 0 || py >= m_image_height)
+					continue;
+				
+				uint8_t pix = m_next_image[index];
+				
+				if (m_args.debug)
 				{
-					exit_with_msg("Planar4 output only supports 8 pixel wide tiles.\n");
+					printf("%02x ", pix);
 				}
-				for (int x = 0; x < m_tile_width; x++)
+				
+				if (m_args.colors_4bit)
 				{
-					int px = tx + x, py = ty + y;
-					int index = py * m_image_width + px;
-					
-					if (px < 0 || px >= m_image_width || py < 0 || py >= m_image_height)
-						continue;
-					
-					if (m_args.debug)
+					if (ti & 1)
 					{
-						printf("%02x ", m_next_image[index]);
-					}
-					
-					pix2Planar(m_next_image[index], planes);
-				}
-				for (int n=0; n<4; n++)
-				{
-					m_tiles[ti+n] = planes[n];
-				}
-			}
-			else
-			{
-				for (int x = 0; x < m_tile_width; x++)
-				{
-					int tile_size = m_tile_size * m_tile_count;
-					int ti = tile_size + y * m_tile_width + x;
-					int px = tx + x, py = ty + y;
-					int index = py * m_image_width + px;
-					
-					if (px < 0 || px >= m_image_width || py < 0 || py >= m_image_height)
-						continue;
-					
-					uint8_t pix = m_next_image[index];
-					
-					if (m_args.debug)
-					{
-						printf("%02x ", pix);
-					}
-					
-					if (m_args.colors_4bit)
-					{
-						if (ti & 1)
-						{
-							m_tiles[ti >> 1] |= (pix & 0xf);
-						}
-						else
-						{
-							m_tiles[ti >> 1] = (pix << 4) & 0xf0;
-						}
-
-						if (m_chunk_size >> 4)
-						{
-							*attributes = (pix & 0xf0);
-						}
+						m_tiles[ti >> 1] |= (pix & 0xf);
 					}
 					else
 					{
-						m_tiles[ti] = pix;
+						m_tiles[ti >> 1] = (pix << 4) & 0xf0;
 					}
+
+					if (m_chunk_size >> 4)
+					{
+						*attributes = (pix & 0xf0);
+					}
+				}
+				else
+				{
+					m_tiles[ti] = pix;
 				}
 			}
 		}
@@ -3084,20 +3088,30 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 	uint32_t tile_index = m_tile_count;
 	match_t match = MATCH_NONE;
 	
-	if (m_args.tile_norepeat || m_args.tile_norotate)
+	if (m_args.tile_norepeat || m_args.tile_norotate || m_args.tile_nomirror)
 	{
 		for (int i = 0; i < m_tile_count; i++)
 		{
-			match = (m_args.tile_norotate ? check_tile_rotate(i) : check_tile(i));
+			match = ((m_args.tile_norotate || m_args.tile_nomirror) ? check_tile_rotate(i) : check_tile(i));
 			
 			if (match != MATCH_NONE)
 			{
 				m_chunk_size = m_tile_size;
 				tile_index = i;
 				
-				if (m_args.tile_norotate)
+				if (m_args.tile_norotate || m_args.tile_nomirror)
 				{
-					*attributes |= (match & 0xe);
+					if (m_args.tile_planar4)	// TODO: Handle SMS attributes, only H/V-flip
+					{
+						// H-flip
+						*attributes |= (match >> 2) & 0x02;
+						// V-flip
+						*attributes |= (match & 0x04);
+					}
+					else
+					{
+						*attributes |= (match & 0xe);
+					}
 				}
 				break;
 			}
