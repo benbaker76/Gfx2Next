@@ -57,6 +57,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-map-none|Don't save a map file (e.g. if you're just adding to tiles)|
 |-map-16bit|Save map as 16 bit output|
 |-map-y|Save map in Y order first. (Default is X order first)|
+|-map-sms|Save 16-bit map with Sega Master System attribute format|
 |-bank-8k|Splits up output file into multiple 8k files|
 |-bank-16k|Splits up output file into multiple 16k files|
 |-bank-48k|Splits up output file into multiple 48k files|

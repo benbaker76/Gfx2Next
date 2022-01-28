@@ -282,6 +282,7 @@ typedef struct
 	bool map_none;
 	bool map_16bit;
 	bool map_y;
+	bool map_sms;
 	bank_size_t bank_size;
 	color_mode_t color_mode;
 	bool colors_4bit;
@@ -339,6 +340,7 @@ static arguments_t m_args  =
 	.map_none = false,
 	.map_16bit = false,
 	.map_y = false,
+	.map_sms = false,
 	.bank_size = BANKSIZE_NONE,
 	.color_mode = COLORMODE_DISTANCE,
 	.colors_4bit = false,
@@ -890,6 +892,7 @@ static void print_usage(void)
 	printf("  -map-none               Don't save a map file\n");
 	printf("  -map-16bit              Save map as 16 bit output\n");
 	printf("  -map-y                  Save map in Y order first. (Default is X order first)\n");
+	printf("  -map-sms                Save 16-bit map with Sega Master System attribute format\n");
 	printf("  -bank-8k                Splits up output file into multiple 8k files\n");
 	printf("  -bank-16k               Splits up output file into multiple 16k files\n");
 	printf("  -bank-48k               Splits up output file into multiple 48k files\n");
@@ -1102,6 +1105,12 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-map-y"))
 			{
 				m_args.map_y = true;
+			}
+			else if (!strcmp(argv[i], "-map-sms"))
+			{
+				m_args.map_sms = true;
+				m_args.map_16bit = true;
+				m_args.map_y = false;
 			}
 			else if (!strcmp(argv[i], "-bank-8k"))
 			{
@@ -3101,12 +3110,13 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 				
 				if (m_args.tile_norotate || m_args.tile_nomirror)
 				{
-					if (m_args.tile_planar4)	// TODO: Handle SMS attributes, only H/V-flip
+					if (m_args.map_sms)
 					{
-						// H-flip
+						// H-flip differs from the next
 						*attributes |= (match >> 2) & 0x02;
-						// V-flip
+						// V-flip bit is the same as the Next
 						*attributes |= (match & 0x04);
+						// Note: there is no rotate on the SMS
 					}
 					else
 					{
