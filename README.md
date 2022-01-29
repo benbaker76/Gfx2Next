@@ -34,6 +34,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tiles-file=&lt;filename&gt;|Load tiles from file in .nxt format|
 |-tile-size=XxY|Sets tile size to X x Y|
 |-tile-norepeat|Remove repeating tiles|
+|-tile-nomirror|Remove repeating and mirrored tiles|
 |-tile-norotate|Remove repeating, rotating and mirrored tiles|
 |-tile-y|Get tile in Y order first. (Default is X order first)|
 |-tile-ldws|Get tile in Y order first for ldws instruction. (Default is X order first)|
@@ -42,6 +43,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-tile-pal=n|Sets the palette offset attribute to n|
 |-tile-pal-auto|Increments palette offset when using wildcards|
 |-tile-none|Don't save a tile file|
+|-tile-planar4|Output tiles in planar (4 planes) rather than chunky format|
 |-tiled|Process file(s) in .tmx format|
 |-tiled-tsx|Outputs the tileset data as a separate .tsx file|
 |-tiled-file=&lt;filename&gt;|Load map from file in .tmx format|
@@ -55,6 +57,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-map-none|Don't save a map file (e.g. if you're just adding to tiles)|
 |-map-16bit|Save map as 16 bit output|
 |-map-y|Save map in Y order first. (Default is X order first)|
+|-map-sms|Save 16-bit map with Sega Master System attribute format|
 |-bank-8k|Splits up output file into multiple 8k files|
 |-bank-16k|Splits up output file into multiple 16k files|
 |-bank-48k|Splits up output file into multiple 48k files|
@@ -72,7 +75,8 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-pal-full|Generate the full palette for -colors-4bit mode|
 |-pal-std|If specified, convert to the Spectrum Next standard palette colors. This option is ignored if the -colors-4bit option is given|
 |-pal-none|No raw palette is created|
-|-pal-rgb332|Force 8-bit palette output|
+|-pal-rgb332|Output palette in RGB332 (8-bit) format|
+|-pal-bgr222|Output palette in BGR222 (8-bit) format. Bits 7-6 are unused|
 |-zx0|Compress all data using zx0|
 |-zx0-screen|Compress screen data using zx0|
 |-zx0-bitmap|Compress bitmap data using zx0|

@@ -93,6 +93,7 @@ int _CRT_glob = 0;
 #define RGB888(r8,g8,b8)			((r8 << 16) | (g8 << 8) | b8)
 #define RGB332(r3,g3,b2)			((r3 << 5) | (g3 << 2) | b2)
 #define RGB333(r3,g3,b3)			((r3 << 6) | (g3 << 3) | b3)
+#define BGR222(b2,g2,r2)			((b2 << 4) | (g2 << 2) | r2)
 
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
 #define MAX(x,y)					((x) > (y) ? (x) : (y))
@@ -260,6 +261,7 @@ typedef struct
 	bool sprites;
 	char *tiles_file;
 	bool tile_norepeat;
+	bool tile_nomirror;
 	bool tile_norotate;
 	bool tile_y;
 	bool tile_ldws;
@@ -268,6 +270,7 @@ typedef struct
 	int tile_pal;
 	bool tile_pal_auto;
 	bool tile_none;
+	bool tile_planar4;
 	bool tiled;
 	bool tiled_tsx;
 	char *tiled_file;
@@ -279,6 +282,7 @@ typedef struct
 	bool map_none;
 	bool map_16bit;
 	bool map_y;
+	bool map_sms;
 	bank_size_t bank_size;
 	color_mode_t color_mode;
 	bool colors_4bit;
@@ -288,6 +292,7 @@ typedef struct
 	bool pal_full;
 	bool pal_std;
 	bool pal_rgb332;
+	bool pal_bgr222;
 	bool zx0_back;
 	bool zx0_quick;
 	compress_t compress;
@@ -314,6 +319,7 @@ static arguments_t m_args  =
 	.sprites = false,
 	.tiles_file = NULL,
 	.tile_norepeat = false,
+	.tile_nomirror = false,
 	.tile_norotate = false,
 	.tile_y = false,
 	.tile_ldws = false,
@@ -322,6 +328,7 @@ static arguments_t m_args  =
 	.tile_pal = 0,
 	.tile_pal_auto = false,
 	.tile_none = false,
+	.tile_planar4 = false,
 	.tiled = false,
 	.tiled_tsx = false,
 	.tiled_file = NULL,
@@ -333,6 +340,7 @@ static arguments_t m_args  =
 	.map_none = false,
 	.map_16bit = false,
 	.map_y = false,
+	.map_sms = false,
 	.bank_size = BANKSIZE_NONE,
 	.color_mode = COLORMODE_DISTANCE,
 	.colors_4bit = false,
@@ -342,6 +350,7 @@ static arguments_t m_args  =
 	.pal_full = false,
 	.pal_std = false,
 	.pal_rgb332 = false,
+	.pal_bgr222 = false,
 	.zx0_back = false,
 	.zx0_quick = false,
 	.compress = COMPRESS_NONE,
@@ -539,6 +548,17 @@ static uint16_t rgb888_to_rgb332(uint32_t rgb888, color_mode_t color_mode)
 	return RGB332(r3, g3, b2);
 }
 
+static uint16_t rgb888_to_bgr222(uint32_t rgb888, color_mode_t color_mode)
+{
+	uint8_t r8 = rgb888 >> 16;
+	uint8_t g8 = rgb888 >> 8;
+	uint8_t b8 = rgb888;
+	uint8_t r2 = c8_to_c2(r8, color_mode);
+	uint8_t g2 = c8_to_c2(g8, color_mode);
+	uint8_t b2 = c8_to_c2(b8, color_mode);
+	return BGR222(b2, g2, r2);
+}
+
 static uint16_t rgb888_to_rgb333(uint32_t rgb888, color_mode_t color_mode)
 {
 	uint8_t r8 = rgb888 >> 16;
@@ -701,6 +721,22 @@ static void convert_standard_palette(color_mode_t color_mode)
 	}
 }
 
+static void create_sms_palette(color_mode_t color_mode)
+{
+	// Create the SMS palette.
+	// The RGB888 colors in the BMP palette are converted to BRG222 colors.
+	for (int i = 0; i < 16; i++)
+	{
+		// Palette contains ARGB colors.
+		uint8_t r8 = m_palette[i * 4 + 1];
+		uint8_t g8 = m_palette[i * 4 + 2];
+		uint8_t b8 = m_palette[i * 4 + 3];
+		uint8_t bgr222 = rgb888_to_bgr222(RGB888(r8, g8, b8), color_mode);
+
+		((uint8_t *) m_next_palette)[i] = bgr222;
+	}
+}
+
 static void create_next_palette(color_mode_t color_mode)
 {
 	// Create the next palette.
@@ -833,6 +869,7 @@ static void print_usage(void)
 	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format\n");
 	printf("  -tile-size=XxY          Sets tile size to X x Y\n");
 	printf("  -tile-norepeat          Remove repeating tiles\n");
+	printf("  -tile-nomirror          Remove repeating and mirrored tiles");
 	printf("  -tile-norotate          Remove repeating, rotating and mirrored tiles\n");
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
@@ -841,6 +878,7 @@ static void print_usage(void)
 	printf("  -tile-pal=n             Sets the palette offset attribute to n\n");
 	printf("  -tile-pal-auto          Increments palette offset when using wildcards\n");
 	printf("  -tile-none              Don't save a tile file\n");
+	printf("  -tile-planar4           Output tiles in planar (4 planes) rather than chunky format\n");
 	printf("  -tiled                  Process file(s) in .tmx format\n");
 	printf("  -tiled-tsx              Outputs the tileset data as a separate .tsx file\n");
 	printf("  -tiled-file=<filename>  Load map from file in .tmx format\n");
@@ -854,6 +892,7 @@ static void print_usage(void)
 	printf("  -map-none               Don't save a map file\n");
 	printf("  -map-16bit              Save map as 16 bit output\n");
 	printf("  -map-y                  Save map in Y order first. (Default is X order first)\n");
+	printf("  -map-sms                Save 16-bit map with Sega Master System attribute format\n");
 	printf("  -bank-8k                Splits up output file into multiple 8k files\n");
 	printf("  -bank-16k               Splits up output file into multiple 16k files\n");
 	printf("  -bank-48k               Splits up output file into multiple 48k files\n");
@@ -874,7 +913,8 @@ static void print_usage(void)
 	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors\n");
 	printf("                          This option is ignored if the -colors-4bit option is given\n");
 	printf("  -pal-none               No raw palette is created\n");
-	printf("  -pal-rgb332             Force 8-bit palette output\n");
+	printf("  -pal-rgb332             Output palette in RGB332 (8-bit) format\n");
+	printf("  -pal-bgr222             Output palette in BGR222 (8-bit) format. Bits 7-6 are unused\n");
 	printf("  -zx0                    Compress all data using zx0\n");
 	printf("  -zx0-screen             Compress screen data using zx0\n");
 	printf("  -zx0-bitmap             Compress bitmap data using zx0\n");
@@ -969,6 +1009,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.tile_norepeat = true;
 			}
+			else if (!strcmp(argv[i], "-tile-nomirror"))
+			{
+				m_args.tile_nomirror = true;
+			}
 			else if (!strcmp(argv[i], "-tile-norotate"))
 			{
 				m_args.tile_norotate = true;
@@ -1000,6 +1044,11 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-tile-none"))
 			{
 				m_args.tile_none = true;
+			}
+			else if (!strcmp(argv[i], "-tile-planar4"))
+			{
+				m_args.tile_planar4 = true;
+				m_args.colors_4bit = true;
 			}
 			else if (!strcmp(argv[i], "-tiled"))
 			{
@@ -1056,6 +1105,12 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-map-y"))
 			{
 				m_args.map_y = true;
+			}
+			else if (!strcmp(argv[i], "-map-sms"))
+			{
+				m_args.map_sms = true;
+				m_args.map_16bit = true;
+				m_args.map_y = false;
 			}
 			else if (!strcmp(argv[i], "-bank-8k"))
 			{
@@ -1156,6 +1211,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-pal-rgb332"))
 			{
 				m_args.pal_rgb332 = true;
+			}
+			else if (!strcmp(argv[i], "-pal-bgr222"))
+			{
+				m_args.pal_bgr222 = true;
 			}
 			else if (!strcmp(argv[i], "-zx0"))
 			{
@@ -2079,7 +2138,7 @@ static void write_next_palette()
 	uint32_t next_palette_size = m_args.colors_4bit && !m_args.pal_full ? NEXT_4BIT_PALETTE_SIZE : NEXT_PALETTE_SIZE;
 
 	// 8-bit palette is half the regular palette size
-	if (m_args.pal_rgb332)
+	if (m_args.pal_rgb332 || m_args.pal_bgr222)
 	{
 		next_palette_size /= 2;
 	}
@@ -2475,6 +2534,42 @@ static void write_next_bitmap()
 	}
 }
 
+// Convert 4-bit chunky to planar
+void c2p(uint8_t *source, uint32_t size)
+{
+	uint8_t	planes[4];
+	// 4 bytes is 8 pixels
+	for (int n=0; n<size; n+=4)
+	{
+		// 8-pixels at a time
+		for (int pixel = 0; pixel < 8; pixel++)
+		{
+			unsigned char nibble = source[pixel >> 1];
+
+			// Check for upper nibble
+			if ((pixel & 1) == 0)
+				nibble >>= 4;
+
+			// Planes 0-3
+			for (int plane = 0; plane < 4; plane++)
+			{
+				planes[plane] <<= 1;
+				planes[plane] &= 0xfe;
+				planes[plane] |= (nibble & 0x01);
+				nibble >>= 1;
+			}
+		}
+
+		// Copy the newly created plane data back
+		for (int n=0; n<4; n++)
+		{
+			source[n] = planes[n];
+		}
+
+		source += 4;
+	}
+}
+
 static void write_tiles_sprites()
 {
 	char out_filename[256] = { 0 };
@@ -2486,6 +2581,12 @@ static void write_tiles_sprites()
 
 	if (data_size == 0)
 		return;
+
+	if (m_args.tile_planar4)
+	{
+		// Convert 4-bit chunky to planar
+		c2p(m_tiles, data_size);
+	}
 
 	if (m_args.bank_size > BANKSIZE_NONE)
 	{
@@ -2872,7 +2973,7 @@ static match_t check_tile_rotate(int i)
 	
 	if (!(match & MATCH_ANY))
 	{
-		if (match_rot & MATCH_ANY)
+		if ((match_rot & MATCH_ANY) && (!m_args.tile_nomirror))
 		{
 			match = match_rot;
 		}
@@ -2949,7 +3050,6 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 		{
 			if (m_args.debug)
 				printf("\n%04x: ", y);
-			
 			for (int x = 0; x < m_tile_width; x++)
 			{
 				int tile_size = m_tile_size * m_tile_count;
@@ -2977,7 +3077,7 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 					{
 						m_tiles[ti >> 1] = (pix << 4) & 0xf0;
 					}
-					
+
 					if (m_chunk_size >> 4)
 					{
 						*attributes = (pix & 0xf0);
@@ -2997,20 +3097,31 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 	uint32_t tile_index = m_tile_count;
 	match_t match = MATCH_NONE;
 	
-	if (m_args.tile_norepeat || m_args.tile_norotate)
+	if (m_args.tile_norepeat || m_args.tile_norotate || m_args.tile_nomirror)
 	{
 		for (int i = 0; i < m_tile_count; i++)
 		{
-			match = (m_args.tile_norotate ? check_tile_rotate(i) : check_tile(i));
+			match = ((m_args.tile_norotate || m_args.tile_nomirror) ? check_tile_rotate(i) : check_tile(i));
 			
 			if (match != MATCH_NONE)
 			{
 				m_chunk_size = m_tile_size;
 				tile_index = i;
 				
-				if (m_args.tile_norotate)
+				if (m_args.tile_norotate || m_args.tile_nomirror)
 				{
-					*attributes |= (match & 0xe);
+					if (m_args.map_sms)
+					{
+						// H-flip differs from the next
+						*attributes |= (match >> 2) & 0x02;
+						// V-flip bit is the same as the Next
+						*attributes |= (match & 0x04);
+						// Note: there is no rotate on the SMS
+					}
+					else
+					{
+						*attributes |= (match & 0xe);
+					}
 				}
 				break;
 			}
@@ -3527,7 +3638,14 @@ int process_file()
 	}
 	else
 	{
-		create_next_palette(m_args.color_mode);
+		if (m_args.pal_bgr222)
+		{
+			create_sms_palette(m_args.color_mode);
+		}
+		else
+		{
+			create_next_palette(m_args.color_mode);
+		}
 	}
 	
 	read_next_image();
