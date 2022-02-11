@@ -286,6 +286,7 @@ typedef struct
 	bank_size_t bank_size;
 	color_mode_t color_mode;
 	bool colors_4bit;
+	bool colors_1bit;
 	char *pal_file;
 	pal_mode_t pal_mode;
 	bool pal_min;
@@ -344,6 +345,7 @@ static arguments_t m_args  =
 	.bank_size = BANKSIZE_NONE,
 	.color_mode = COLORMODE_DISTANCE,
 	.colors_4bit = false,
+	.colors_1bit = false,
 	.pal_file = NULL,
 	.pal_mode = PALMODE_EXTERNAL,
 	.pal_min = false,
@@ -743,24 +745,34 @@ static void create_next_palette(color_mode_t color_mode)
 	// The RGB888 colors in the BMP palette are converted to RGB333 colors,
 	// which are then split in RGB332 and B1 parts.
 	uint32_t palette_count = m_args.colors_4bit && !m_args.pal_full ? 16 : 256;
-	for (int i = 0; i < palette_count; i++)
-	{
-		// Palette contains ARGB colors.
-		uint8_t r8 = m_palette[i * 4 + 1];
-		uint8_t g8 = m_palette[i * 4 + 2];
-		uint8_t b8 = m_palette[i * 4 + 3];
-		uint16_t rgb333 = rgb888_to_rgb333(RGB888(r8, g8, b8), color_mode);
-		uint8_t rgb332 = (uint8_t) (rgb333 >> 1);
-		uint8_t b1 = (uint8_t) (rgb333 & 1);
 
-		// Access as bytes for 8-bit palette
-		if (m_args.pal_rgb332)
+	if (m_args.colors_1bit)
+	{
+		m_next_palette[0] = 0x0000;		// Black
+		for (int i = 1; i < palette_count; i++)
+			m_next_palette[i] = 0x01ff;	// White
+	}
+	else
+	{
+		for (int i = 0; i < palette_count; i++)
 		{
-			((uint8_t *) m_next_palette)[i] = rgb332;
-		}
-		else
-		{
-			m_next_palette[i] = (b1 << 8) | rgb332;
+			// Palette contains ARGB colors.
+			uint8_t r8 = m_palette[i * 4 + 1];
+			uint8_t g8 = m_palette[i * 4 + 2];
+			uint8_t b8 = m_palette[i * 4 + 3];
+			uint16_t rgb333 = rgb888_to_rgb333(RGB888(r8, g8, b8), color_mode);
+			uint8_t rgb332 = (uint8_t) (rgb333 >> 1);
+			uint8_t b1 = (uint8_t) (rgb333 & 1);
+
+			// Access as bytes for 8-bit palette
+			if (m_args.pal_rgb332)
+			{
+				((uint8_t *) m_next_palette)[i] = rgb332;
+			}
+			else
+			{
+				m_next_palette[i] = (b1 << 8) | rgb332;
+			}
 		}
 	}
 } 
@@ -869,7 +881,7 @@ static void print_usage(void)
 	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format\n");
 	printf("  -tile-size=XxY          Sets tile size to X x Y\n");
 	printf("  -tile-norepeat          Remove repeating tiles\n");
-	printf("  -tile-nomirror          Remove repeating and mirrored tiles");
+	printf("  -tile-nomirror          Remove repeating and mirrored tiles\n");
 	printf("  -tile-norotate          Remove repeating, rotating and mirrored tiles\n");
 	printf("  -tile-y                 Get tile in Y order first. (Default is X order first)\n");
 	printf("  -tile-ldws              Get tile in Y order first for ldws instruction. (Default is X order first)\n");
@@ -903,6 +915,7 @@ static void print_usage(void)
 	printf("  -color-round            Round the color values to the nearest integer\n");
 	printf("  -colors-4bit            Use 4 bits per pixel (16 colors). Default is 8 bits per pixel (256 colors)\n");
 	printf("                          Get sprites or tiles as 16 colors, top 4 bits of 16 bit map is palette index\n");
+	printf("  -colors-1bit            Use 1 bits per pixel (2 colors). Default is 8 bits per pixel (256 colors)\n");
 	printf("  -pal-file=<filename>    Load palette from file in .nxp format\n");
 	printf("  -pal-embed              The raw palette is prepended to the raw image file\n");
 	printf("  -pal-ext                The raw palette is written to an external file (.nxp). This is the default\n");
@@ -1178,7 +1191,13 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			}
 			else if (!strcmp(argv[i], "-colors-4bit"))
 			{
+				m_args.colors_1bit = false;
 				m_args.colors_4bit = true;
+			}
+			else if (!strcmp(argv[i], "-colors-1bit"))
+			{
+				m_args.colors_4bit = false;
+				m_args.colors_1bit = true;
 			}
 			else if (!strncmp(argv[i], "-pal-file=", 10))
 			{
@@ -1704,11 +1723,17 @@ static void write_tiles_png(char *png_filename, uint32_t tile_width, uint32_t ti
 				uint32_t src_index = src_offset + y * tile_width + x;
 				uint32_t dst_index = dst_offset + y * *bitmap_width + x;
 
-				if (m_args.colors_4bit)
-					src_index >>= 1;
-
+				if (m_args.colors_1bit)
+				{
+					// Convert back to 8-bit
+					// Palette has been fixed so index 0 is black and index 1 is white
+					p_image[dst_index] = (m_tiles[src_index>>3] >> (7-(x&0x7))) & 0x01 ? 1 : 0;
+				}
+				else
 				if (m_args.colors_4bit)
 				{
+					src_index >>= 1;
+
 					if ((x & 1) == 0)
 						p_image[dst_index] = m_tiles[src_index] >> 4;
 					else
@@ -2574,7 +2599,7 @@ static void write_tiles_sprites()
 {
 	char out_filename[256] = { 0 };
 	uint32_t tile_offset = 0;
-	uint32_t tile_size = (m_args.colors_4bit ? m_tile_size >> 1 : m_tile_size);
+	uint32_t tile_size = (m_args.colors_4bit ? m_tile_size >> 1 : (m_args.colors_1bit ? m_tile_size >> 3 : m_tile_size));
 	uint32_t data_size = tile_size * m_tile_count;
 	const char *extension = (m_args.sprites ? EXT_SPR : EXT_NXT);
 	bool use_compression = m_args.compress &  (m_args.sprites ? COMPRESS_SPRITES : COMPRESS_TILES);
@@ -3021,6 +3046,12 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 					printf("%02x ", pix);
 				}
 				
+				if (m_args.colors_1bit)
+				{
+					m_tiles[ti >> 3] <<= 1;
+					m_tiles[ti >> 3] |= pix ? 1 : 0;
+				}
+				else
 				if (m_args.colors_4bit)
 				{
 					if (ti & 1)
@@ -3067,6 +3098,12 @@ static int get_tile(int tx, int ty, uint8_t *attributes)
 					printf("%02x ", pix);
 				}
 				
+				if (m_args.colors_1bit)
+				{
+					m_tiles[ti >> 3] <<= 1;
+					m_tiles[ti >> 3] |= pix ? 1 : 0;
+				}
+				else
 				if (m_args.colors_4bit)
 				{
 					if (ti & 1)
