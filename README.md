@@ -68,6 +68,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-color-ceil|Round up the color values to the nearest integer|
 |-color-round|Round the color values to the nearest integer|
 |-colors-4bit|Use 4 bits per pixel (16 colors). Default is 8 bits per pixel (256 colors). Get sprites or tiles as 16 colors, top 4 bits of 16 bit map is palette index|
+|-colors-1bit|Use 1 bit per pixel (2 colors). Default is 8 bits per pixel (256 colors)|
 |-pal-file=&lt;filename&gt;|Load palette from file in .nxp format|
 |-pal-embed|The raw palette is prepended to the raw image file|
 |-pal-ext|The raw palette is written to an external file (.nxp). This is the default|
