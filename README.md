@@ -116,7 +116,7 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c -lm
 ## Credits
 
 * Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
-* [Craig Hackney](https://github.com/iratahack) - Added -pal-rgb332 option and fixes
+* [Craig Hackney](https://github.com/iratahack) - Added -pal-rgb332 & -pal-bgr222, -colors-1bit, and -map-sms options and some fixes
 * Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
 * Jim Bagley - NextGrab / MapGrabber
 * Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
