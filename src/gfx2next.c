@@ -38,7 +38,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.5"
+#define VERSION						"1.1.6"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -1381,7 +1381,7 @@ static void create_filename(char *out_filename, const char *in_filename, const c
 	
 	strcpy(out_filename, start == NULL ? in_filename : start + 1);
 
-	char *end = strchr(out_filename, '.');
+	char *end = strrchr(out_filename, '.');
 	end = (end == NULL ? out_filename + strlen(out_filename) : end);
 
 	strcpy(end, extension);
@@ -3399,14 +3399,14 @@ static void parse_tile(char *line, int first_gid, int *tile_count)
 	
 	while (pch != NULL)
 	{
-		uint32_t tile_id = atoi(pch);
+		uint32_t tile_id = atoi(pch) - first_gid;
 		
 		if (tile_id == -1)
 			tile_id = m_args.tiled_blank;
 		
 		uint8_t attributes = tiled_flags_to_attributes(tile_id >> 28);
 
-		m_map[(*tile_count)++] = ((tile_id & TILED_TILEID_MASK) - first_gid) | (attributes << 8);
+		m_map[(*tile_count)++] = (tile_id & TILED_TILEID_MASK) | (attributes << 8);
 		
 		pch = strtok(NULL, ",\r\n");
 	}
@@ -3577,7 +3577,7 @@ int process_file()
 	
 	if (p_ext != NULL)
 	{
-		if (strcasecmp(p_ext, ".tmx") == 0)
+		if (strcasecmp(p_ext, EXT_TMX) == 0)
 		{
 			m_args.tiled = true;
 			
