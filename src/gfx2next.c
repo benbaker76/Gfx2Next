@@ -4,6 +4,7 @@
  * Credits:
  *
  *    Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
+ *    Craig Hackney - Added -pal-rgb332 & -pal-bgr222, -colors-1bit, and -map-sms options and some fixes
  *    Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
  *    Jim Bagley - NextGrab / MapGrabber
  *    Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
@@ -12,7 +13,7 @@
  *    Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
  *
  * Supports the following ZX Spectrum Next formats:
- * 
+ *
  *    .nxb - Block
  *    .nxi - Bitmap
  *    .nxm - Map
@@ -38,7 +39,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.6"
+#define VERSION						"1.1.7"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -1435,7 +1436,8 @@ static void alphanumeric_to_underscore(char *filename)
 }
 
 static bool is_valid_bmp_file(uint32_t *palette_offset,
-								uint32_t *image_offset)
+								uint32_t *image_offset,
+								uint16_t *bpp)
 {
 	if ((m_bmp_header[0] != 'B') || (m_bmp_header[1] != 'M'))
 	{
@@ -1480,17 +1482,22 @@ static bool is_valid_bmp_file(uint32_t *palette_offset,
 		fprintf(stderr, "Invalid image height in BMP file.\n");
 		return false;
 	}
-
-	if (m_image_width * abs(m_image_height) >= file_size)
+	
+	*bpp = *((uint16_t *) (m_bmp_header + 28));
+	if (*bpp != 4 && *bpp != 8)
 	{
-		fprintf(stderr, "Invalid image size in BMP file.\n");
+		fprintf(stderr, "Not a 4-bit or 8-bit BMP file.\n");
 		return false;
 	}
+	
+	uint32_t image_size = m_image_width * abs(m_image_height);
+	
+	if (*bpp == 4)
+		image_size >>= 1;
 
-	uint16_t bpp = *((uint16_t *) (m_bmp_header + 28));
-	if (bpp != 8)
+	if (image_size >= file_size)
 	{
-		fprintf(stderr, "Not an 8-bit BMP file.\n");
+		fprintf(stderr, "Invalid image size in BMP file.\n");
 		return false;
 	}
 
@@ -1508,6 +1515,8 @@ static void read_bitmap()
 {
 	uint32_t palette_offset;
 	uint32_t image_offset;
+	uint16_t bpp;
+	uint32_t image_size;
 	
 	// Open the BMP file and validate its header.
 	FILE *in_file = fopen(m_args.in_filename, "rb");
@@ -1519,7 +1528,7 @@ static void read_bitmap()
 	{
 		exit_with_msg("Can't read the BMP header in file %s.\n", m_args.in_filename);
 	}
-	if (!is_valid_bmp_file(&palette_offset, &image_offset))
+	if (!is_valid_bmp_file(&palette_offset, &image_offset, &bpp))
 	{
 		exit_with_msg("The file %s is not a valid or supported BMP file.\n", m_args.in_filename);
 	}
@@ -1531,6 +1540,8 @@ static void read_bitmap()
 	m_image_height = m_bottom_to_top_image ? m_image_height : -m_image_height;
 	m_image_size = m_padded_image_width * m_image_height;
 	m_image = malloc(m_image_size);
+	
+	image_size = (bpp == 4 ? m_image_size >> 1 : m_image_size);
 	
 	if (m_image == NULL)
 	{
@@ -1550,12 +1561,25 @@ static void read_bitmap()
 	{
 		exit_with_msg("Can't access the BMP image data in file %s.\n", m_args.in_filename);
 	}
-	if (fread(m_image, sizeof(uint8_t), m_image_size, in_file) != m_image_size)
+	if (fread(m_image, sizeof(uint8_t), image_size, in_file) != image_size)
 	{
 		exit_with_msg("Can't read the BMP image data in file %s.\n", m_args.in_filename);
 	}
 	
-	for (int i = 0; i < NUM_PALETTE_COLORS; i++)
+	// Convert 4-bit to 8-bit data
+	if (bpp == 4)
+	{
+		for (int i = m_image_size-2; i >= 0; i--)
+		{
+			uint8_t value = m_image[i >> 1];
+			
+			m_image[i] = (i & 1 ? value & 0xf : value >> 4);
+		}
+	}
+	
+	uint32_t num_palette_colors = (bpp == 4 ? 16 : 256);
+	
+	for (int i = 0; i < num_palette_colors; i++)
 	{
 		// BGRA to ARGB
 		uint8_t b8 = m_palette[i * 4 + 0];
@@ -3512,7 +3536,7 @@ static void parse_tmx(char *filename, char *bitmap_filename)
 			get_int(line, "firstgid=", &first_gid);
 			get_str(line, "source=", tileset_filename);
 			
-			if (strlen(tileset_filename) != 0)
+			if (!m_args.tile_none && strlen(tileset_filename) != 0)
 			{
 				parse_tsx(tileset_filename, bitmap_filename);
 			}
