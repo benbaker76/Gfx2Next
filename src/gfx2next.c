@@ -2676,7 +2676,7 @@ static void write_tiles_sprites()
 				create_series_filename(out_filename, m_args.out_filename, "_preview.png", false, m_bank_count);
 				
 				//write_png(out_filename, &m_tiles[m_bank_count * m_bank_size], m_image_width, bank_size / m_image_width);
-				write_tiles_png(out_filename, m_tile_width, m_tile_height, tile_offset, tile_count, 256, &bitmap_width, &bitmap_height);
+				write_tiles_png(out_filename, m_tile_width, m_tile_height, tile_offset, tile_count, m_args.tiled_width, &bitmap_width, &bitmap_height);
 				
 				tile_offset += tile_count;
 			}
@@ -2704,7 +2704,7 @@ static void write_tiles_sprites()
 
 			create_filename(out_filename, m_args.out_filename, "_tileset_preview.png", false);
 
-			write_tiles_png(out_filename, m_tile_width, m_tile_height, 0, m_tile_count, 256, &bitmap_width, &bitmap_height);
+			write_tiles_png(out_filename, m_tile_width, m_tile_height, 0, m_tile_count, m_args.tiled_width, &bitmap_width, &bitmap_height);
 		}
 		
 		fclose(p_file);
