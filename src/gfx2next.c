@@ -2698,6 +2698,8 @@ static void write_tiles_sprites()
 
 		write_file(p_file, out_filename, m_tiles, data_size, false, use_compression);
 		
+		fclose(p_file);
+		
 		if (m_args.preview)
 		{
 			uint32_t bitmap_width = 0, bitmap_height = 0;
@@ -2706,8 +2708,6 @@ static void write_tiles_sprites()
 
 			write_tiles_png(out_filename, m_tile_width, m_tile_height, 0, m_tile_count, m_args.tiled_width, &bitmap_width, &bitmap_height);
 		}
-		
-		fclose(p_file);
 	}
 	
 	if (m_args.asm_mode > ASMMODE_NONE)
@@ -2852,6 +2852,82 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	}
 }
 
+static void write_map_png(char *png_filename, uint8_t *map, uint32_t map_bytes, uint32_t map_width, uint32_t map_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
+{
+	if (1 != block_width || 1 != block_height)
+	{
+		// TODO implement non 1x1 blocks
+		printf("Warning tilemap preview png implements only 1x1 size blocks.\n");
+		return;
+	}
+	
+	if (m_args.tile_y)
+	{
+		// TODO implement Y order first maps
+		printf("Warning tilemap preview png implements only X order first maps.\n");
+		return;
+	}
+	
+	uint16_t map_mask = m_args.map_16bit ? 0x1ff : 0xff;
+	uint16_t attribute_mask = m_args.map_16bit ? 0xfe00 : 0x0000;
+	uint8_t any_attribute = 0;
+	
+	uint32_t pixels_per_byte = m_args.colors_4bit ? 2 : m_args.colors_1bit ? 8 : 1;
+	int pixel_shift = 8 / pixels_per_byte;
+	uint32_t tile_byte_width = m_tile_width / pixels_per_byte;
+	uint32_t tile_byte_size = m_tile_height * tile_byte_width;
+	uint8_t pixel_mask = (1 << pixel_shift) - 1;
+	
+	uint32_t png_width = map_width * tile_width * block_width;
+	uint32_t png_height = map_height * tile_height * block_height;
+	uint32_t png_size = png_width * png_height;
+	
+	uint8_t *p_image = malloc(png_size);
+	
+	memset(p_image, 0, png_size);
+	
+	for (uint32_t my = 0; my < map_height; ++my)
+	{
+		for (uint32_t mx = 0; mx < map_width; ++mx)
+		{
+			uint16_t tile_data = 0;
+			memcpy(&tile_data, map + ((my * map_width + mx) * map_bytes), map_bytes);
+			uint16_t tile_id = tile_data & map_mask;
+			uint8_t attributes = (tile_data & attribute_mask) >> 8;
+			uint32_t src_offset = tile_id * tile_byte_size;
+			
+			// TODO attributes are currently ignored, print warning when any is used
+			any_attribute |= attributes;
+			
+			// TODO non-1x1 block implementation somwhere here?
+			
+			for (uint32_t y = 0; y < tile_width; ++y)
+			{
+				uint32_t dst_offset = (my * tile_height * block_height + y) * png_width + (mx * tile_width * block_width);
+				
+				for (uint32_t x_byte = 0; x_byte < tile_byte_width; ++x_byte)
+				{
+					uint8_t pixel = m_tiles[src_offset + y * tile_byte_width + x_byte];
+					
+					for (int shift = 8 - pixel_shift; 0 <= shift; shift -= pixel_shift)
+					{
+						p_image[dst_offset++] = (pixel >> shift) & pixel_mask;
+					}
+				}
+			}
+		}
+	}
+	
+	if (any_attribute) // TODO implement attributes and remove this
+	{
+		printf("Warning tilemap preview png ignores mirror/rotation attributes.\n");
+	}
+	
+	write_png_bits(png_filename, p_image, png_width, png_height, false);
+	
+	free(p_image);
+}
+
 static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile_width, uint32_t tile_height, uint32_t block_width, uint32_t block_height)
 {
 	char map_filename[256] = { 0 };
@@ -2899,13 +2975,21 @@ static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile
 	
 	write_file(p_file, map_filename, p_buffer, map_size, m_args.map_16bit, m_args.compress & COMPRESS_MAP);
 	
-	free(p_buffer);
 	fclose(p_file);
 	
 	if (m_args.tiled_output)
 	{
 		write_tiled_files(image_width, image_height, tile_width, tile_height, block_width, block_height, m_args.tiled_tsx);
 	}
+	
+	if (m_args.preview)
+	{
+		create_filename(map_filename, m_args.out_filename, "_map_preview.png", false);
+		
+		write_map_png(map_filename, p_buffer, map_bytes, map_width, map_height, tile_width, tile_height, block_width, block_height);
+	}
+	
+	free(p_buffer);
 }
 
 static match_t check_tile(int i)
