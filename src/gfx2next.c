@@ -2910,27 +2910,12 @@ static void write_map(uint32_t image_width, uint32_t image_height, uint32_t tile
 
 static match_t check_tile(int i)
 {
-	match_t match = MATCH_XY;
+	uint32_t tile_byte_size = m_args.colors_4bit ? (m_tile_size >> 1) : m_args.colors_1bit ? (m_tile_size >> 3) : m_tile_size;
 	
-	for (int j = 0; j < m_tile_size; j++)
-	{
-		int ti = i * m_tile_size + j;
-		int index = m_tile_count * m_tile_size + j;
-		
-		if (m_args.colors_4bit)
-		{
-			ti >>= 1;
-			index >>= 1;
-		}
-		
-		if (m_tiles[ti] != m_tiles[index])
-		{
-			match &= ~MATCH_XY;
-			break;
-		}
-	}
+	int i_offset = i * tile_byte_size;
+	int new_tile_offset = m_tile_count * tile_byte_size;
 	
-	return match;
+	return memcmp(m_tiles + i_offset, m_tiles + new_tile_offset, tile_byte_size) ? MATCH_NONE : MATCH_XY;
 }
 
 static match_t check_tile_rotate(int i)
@@ -3355,7 +3340,7 @@ static void process_tiles()
 						uint32_t ti = m_args.tile_offset + get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						uint16_t map_mask = (m_args.map_16bit ? 0x1ff : 0xff);
 						
-						m_map[y * (m_image_width / m_tile_width) + x] = (ti & map_mask) | (attributes << 8);
+						m_map[y * map_width + x] = (ti & map_mask) | (attributes << 8);
 					}
 					else
 					{
