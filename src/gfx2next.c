@@ -2546,7 +2546,7 @@ static void write_next_bitmap()
 			else
 				p_image = get_bank(m_next_image + m_bank_count * m_bank_size, bank_size);
 			
-			write_next_bitmap_file(bitmap_file, m_bitmap_filename, p_image, bank_size, m_args.compress & COMPRESS_BITMAP);
+			write_file(bitmap_file, m_bitmap_filename, p_image, bank_size, false, m_args.compress & COMPRESS_BITMAP);
 			
 			fclose(bitmap_file);
 
@@ -2664,7 +2664,7 @@ static void write_tiles_sprites()
 				exit_with_msg("Can't create file %s.\n", out_filename);
 			}
 			
-			write_next_bitmap_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, use_compression);
+			write_file(p_file, out_filename, &m_tiles[m_bank_count * m_bank_size], bank_size, false, use_compression);
 			
 			fclose(p_file);
 
@@ -2696,7 +2696,7 @@ static void write_tiles_sprites()
 			exit_with_msg("Can't create file %s.\n", out_filename);
 		}
 
-		write_next_bitmap_file(p_file, out_filename, m_tiles, data_size, use_compression);
+		write_file(p_file, out_filename, m_tiles, data_size, false, use_compression);
 		
 		if (m_args.preview)
 		{
