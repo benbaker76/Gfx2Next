@@ -3402,12 +3402,12 @@ static void process_tiles()
 						uint32_t ti = m_args.tile_offset + get_tile(x * m_tile_width, y * m_tile_height, &attributes);
 						uint16_t map_mask = (m_args.map_16bit ? 0x1ff : 0xff);
 						
-						m_map[x * (m_image_height / m_tile_height) + y] = (ti & map_mask) | (attributes << 8);
+						m_map[x * map_height + y] = (ti & map_mask) | (attributes << 8);
 					}
 					else
 					{
 						uint32_t ti = get_block(x * m_tile_width * m_block_width, y * m_tile_height * m_block_height);
-						m_map[x + map_height * x] = ti;
+						m_map[x * map_height + y] = ti;
 					}
 				}
 			}
