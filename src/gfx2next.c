@@ -2781,7 +2781,7 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 	uint32_t first_gid = 1;
 	
 	fprintf(p_tmx_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-	fprintf(p_tmx_file, "<map version=\"1.5\" tiledversion=\"1.7.0\" orientation=\"orthogonal\" renderorder=\"right-down\" width=\"%d\" height=\"%d\" tilewidth=\"%d\" tileheight=\"%d\" infinite=\"0\" nextlayerid=\"2\" nextobjectid=\"1\">\n", map_width, map_height, tile_width, tile_height);
+	fprintf(p_tmx_file, "<map version=\"1.5\" tiledversion=\"1.7.0\" orientation=\"orthogonal\" renderorder=\"right-down\" width=\"%d\" height=\"%d\" tilewidth=\"%d\" tileheight=\"%d\" infinite=\"0\" backgroundcolor=\"#ff00ff\" nextlayerid=\"2\" nextobjectid=\"1\">\n", map_width, map_height, tile_width, tile_height);
 	
 	if (use_tsx)
 	{
@@ -2804,7 +2804,7 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 			{
 				uint16_t tile_id = m_map[y * map_width + x];
 				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
-				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
+				uint32_t tile_value = ((tile_id & map_mask) + first_gid) | (tile_flags << 28);
 				
 				if (x == map_width-1 && y == map_height-1)
 					fprintf(p_tmx_file, "%u", tile_value);
@@ -2822,7 +2822,7 @@ static void write_tiled_files(uint32_t image_width, uint32_t image_height, uint3
 			{
 				uint16_t tile_id = m_map[y * map_width + x];
 				uint8_t tile_flags = attributes_to_tiled_flags(tile_id >> 8);
-				uint32_t tile_value = ((first_gid + tile_id) & map_mask) | (tile_flags << 28);
+				uint32_t tile_value = ((tile_id & map_mask) + first_gid) | (tile_flags << 28);
 				
 				if (x == map_width-1 && y == map_height-1)
 					fprintf(p_tmx_file, "%u", tile_value);
