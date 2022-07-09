@@ -6,6 +6,8 @@
 
 .PHONY: all install distro clean
 
+CC := gcc
+
 MKDIR := mkdir -p
 
 RM := rm -rf
@@ -46,4 +48,4 @@ clean:
 
 $(EXE_FULL_NAME): src/lodepng.c src/zx0.c src/gfx2next.c
 	$(MKDIR) $(@D)
-	gcc -O2 -Wall -o $@ $^ -lm
+	$(CC) -O2 -Wall -o $@ $^ -lm
