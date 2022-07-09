@@ -1,0 +1,35 @@
+task:
+  name: Linux gcc 9/latest builds
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  container:
+    matrix:
+      image: gcc:9
+      image: gcc:latest
+    cpu: 2
+    memory: 1G
+  build_script: make clean && make -j3
+  install_script: make install && make clean
+  ## now try the built+installed gfx2next with some tests
+  # this is not separate task, because that would need again build
+  # of sjasmplus in new container instance, so just do everything in one task
+  # TODO after adding some tests: tests_script: make tests
+
+task:
+  name: MacOS default CC build (with unit tests)
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-monterey-base:latest
+  #sw_versions2_script:
+    #- git --version || echo "no git"
+    #- bash --version || echo "no bash"
+    #- make --version || echo "no make"
+    #- cc --version || echo "no cc"
+    #- c++ --version || echo "no c++"
+  build_script:
+    - date
+    - make clean && make -j10 CC=cc
+  # TODO after adding some tests: test_script: make clean && make -j10 CC=cc tests
+
+# TODO: add some tests, either through custom bash script runner, or makefile or CMake even
