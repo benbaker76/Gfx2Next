@@ -984,11 +984,14 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_args.bitmap = true;
 				m_args.map_none = true;
+				m_args.tile_none = true;
 			}
 			else if (!strcmp(argv[i], "-bitmap-y"))
 			{
 				m_args.bitmap = true;
 				m_args.bitmap_y = true;
+				m_args.map_none = true;
+				m_args.tile_none = true;
 			}
 			else if (!strncmp(argv[i], "-bitmap-size=", 13))
 			{
@@ -2223,7 +2226,33 @@ static void write_next_bitmap_file(FILE *bitmap_file, char *bitmap_filename, uin
 	{
 		create_filename(m_bitmap_filename, m_args.out_filename, "_preview.png", false);
 
-		write_png(m_bitmap_filename, m_next_image, m_image_width, m_image_height);
+		if (m_args.bitmap_y && m_args.colors_4bit)
+		{
+			// convert 640 x 256 layer 2 mode colums of rigth+left pixels to regular 4bpp column by column
+			uint8_t* preview_image = malloc(m_image_height * m_image_width / 2);
+			uint8_t* preview_image_p = preview_image;
+			for (int x = 0; x < m_image_width; x += 2)
+			{
+				for (int y = 0; y < m_image_height; y += 2)
+				{
+					int src_i = y + x / 2 * m_image_height;
+					*preview_image_p++ = (0xf0 & m_next_image[src_i]) | (m_next_image[src_i + 1] >> 4);
+				}
+				for (int y = 0; y < m_image_height; y += 2)
+				{
+					int src_i = y + x / 2 * m_image_height;
+					*preview_image_p++ = (m_next_image[src_i] << 4) | (0x0f & m_next_image[src_i + 1]);
+				}
+			}
+			
+			write_png(m_bitmap_filename, preview_image, m_image_height, m_image_width);
+			
+			free(preview_image);
+		}
+		else
+		{
+			write_png(m_bitmap_filename, m_next_image, m_args.bitmap_y ? m_image_height : m_image_width, m_args.bitmap_y ? m_image_width : m_image_height);
+		}
 	}
 }
 
