@@ -1,0 +1,40 @@
+name: amd64_linux_gcc
+
+on: [push]
+
+jobs:
+
+  amd64_linux_gcc:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v3
+    - run: make
+    - name: Get version
+      id: version
+      run: |
+        output=$(build/gfx2next -version)
+        echo "::set-output name=result::$output"
+    - name: Copy README.md
+      run: cp README.md build
+    - name: Compress Files
+      uses: a7ul/tar-action@v1.1.0
+      with:
+        command: c
+        cwd: build
+        files: |
+          README.md
+          gfx2next
+        outPath: build/gfx2next_Linux_amd64.tar.gz
+    - name: Upload to Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Artifacts
+        path: build/gfx2next_Linux_amd64.tar.gz
+    - name: Upload to Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: build/gfx2next_Linux_amd64.tar.gz
+        tag: ${{ steps.version.outputs.result }}
+        overwrite: true
