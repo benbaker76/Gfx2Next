@@ -125,4 +125,4 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c -lm
 * Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
 
 ## Download
-[Gfx2Next](https://www.rustypixels.uk/?download=1001)
+[Gfx2Next](https://github.com/benbaker76/Gfx2Next/releases/latest)
