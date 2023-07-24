@@ -3534,7 +3534,7 @@ static void parse_tmx(char *filename, char *bitmap_filename)
 	int first_gid = 0;
 	bool is_data = false;
 	
-	while (getline(&line, &cnt, tmx_file))
+	while (getline(&line, &cnt, tmx_file) != -1)
 	{
 		if (strstr(line, "<map"))
 		{
