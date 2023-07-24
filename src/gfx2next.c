@@ -39,7 +39,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.8"
+#define VERSION						"1.1.9"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -3437,10 +3437,13 @@ static void parse_tile(char *line, int first_gid, int *tile_count)
 	
 	while (pch != NULL)
 	{
-		uint32_t tile_id = atoi(pch) - first_gid;
-		
-		if (tile_id == -1)
-			tile_id = m_args.tiled_blank;
+        uint32_t tile_id = atoi(pch);
+
+        // Check for erased tile and replace it with the blank tile ID
+        if (tile_id == 0)
+            tile_id = m_args.tiled_blank;
+        else
+            tile_id -= first_gid;
 		
 		uint8_t attributes = tiled_flags_to_attributes(tile_id >> 28);
 
@@ -3518,8 +3521,9 @@ static void parse_tsx(char *filename, char *bitmap_filename)
 
 static void parse_tmx(char *filename, char *bitmap_filename)
 {
-	char line[512], string[32];
+	char *line = NULL, string[32];
 	char tileset_filename[256] = { 0 };
+	size_t	cnt = 0;
 	FILE *tmx_file = fopen(filename, "r");
 	
 	if (tmx_file == NULL)
@@ -3533,7 +3537,7 @@ static void parse_tmx(char *filename, char *bitmap_filename)
 	int first_gid = 0;
 	bool is_data = false;
 	
-	while (fgets(line, 512, tmx_file))
+	while (getline(&line, &cnt, tmx_file) != -1)
 	{
 		if (strstr(line, "<map"))
 		{
@@ -3588,6 +3592,7 @@ static void parse_tmx(char *filename, char *bitmap_filename)
 		parse_tile(line, first_gid, &tile_count);
 	}
 	
+	free(line);
 	fclose(tmx_file);
 	
 	int image_width = map_width * tile_width;
