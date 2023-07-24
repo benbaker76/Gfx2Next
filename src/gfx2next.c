@@ -3437,10 +3437,13 @@ static void parse_tile(char *line, int first_gid, int *tile_count)
 	
 	while (pch != NULL)
 	{
-		uint32_t tile_id = atoi(pch) - first_gid;
-		
-		if (tile_id == -1)
-			tile_id = m_args.tiled_blank;
+        uint32_t tile_id = atoi(pch);
+
+        // Check for erased tile and replace it with the blank tile ID
+        if (tile_id == 0)
+            tile_id = m_args.tiled_blank;
+        else
+            tile_id -= first_gid;
 		
 		uint8_t attributes = tiled_flags_to_attributes(tile_id >> 28);
 
