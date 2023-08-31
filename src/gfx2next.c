@@ -39,7 +39,7 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.9"
+#define VERSION						"1.1.10"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -244,6 +244,7 @@ typedef struct
 	bool pal_std;
 	bool pal_rgb332;
 	bool pal_bgr222;
+	bool pal_zx;
 	bool zx0_back;
 	bool zx0_quick;
 	compress_t compress;
@@ -879,6 +880,7 @@ static void print_usage(void)
 	printf("  -pal-none               No raw palette is created\n");
 	printf("  -pal-rgb332             Output palette in RGB332 (8-bit) format\n");
 	printf("  -pal-bgr222             Output palette in BGR222 (8-bit) format. Bits 7-6 are unused\n");
+	printf("  -pal-zx                 Output a ZX Spectrum attribute map matching the input image\n");
 	printf("  -zx0                    Compress all data using zx0\n");
 	printf("  -zx0-screen             Compress screen data using zx0\n");
 	printf("  -zx0-bitmap             Compress bitmap data using zx0\n");
@@ -1188,6 +1190,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-pal-bgr222"))
 			{
 				m_args.pal_bgr222 = true;
+			}
+			else if (!strcmp(argv[i], "-pal-zx"))
+			{
+				m_args.pal_zx = true;
 			}
 			else if (!strcmp(argv[i], "-zx0"))
 			{
@@ -2375,15 +2381,18 @@ static void write_screen()
 					}
 					
 					if (!attrFound)
+					{
+						// Check attrCount before using it to prevent seg fault
+						if (attrCount > 1)
+							exit_with_msg("More than 2 colors in an attribute block at (%d, %d)\n", x/8, y/8);
 						attr[attrCount++] = color;
+					}
 				}
 				
 				byte[j] = row;
 			}
 			
-			if (attrCount > 2)
-				exit_with_msg("More than 2 colors in an attribute block in (%d, %d)\n", x, y);
-			else if(attrCount != 2)
+			if(attrCount != 2)
 			{
 				// If only one colour, try to find a match in an adjacent cell
 				if (attribCount)
@@ -2452,6 +2461,112 @@ static void write_screen()
 	
 	write_file(p_file, screen_filename, p_buffer, total_size, false, m_args.compress & COMPRESS_SCREEN);
 	
+	free(p_buffer);
+	fclose(p_file);
+}
+
+static void write_attribs()
+{
+	char screen_filename[256] = { 0 };
+	create_filename(screen_filename, m_args.out_filename, EXT_NXP, m_args.compress & COMPRESS_SCREEN);
+	FILE *p_file = fopen(screen_filename, "wb");
+
+	if (p_file == NULL)
+	{
+		exit_with_msg("Can't create file %s.\n", screen_filename);
+	}
+
+	uint32_t cols_count = m_image_width / 8;
+	uint32_t rows_count = m_image_height / 8;
+	uint32_t attrib_size = cols_count * rows_count;
+	uint8_t *p_buffer = malloc(attrib_size);
+	uint32_t *p_attrib = malloc(attrib_size * sizeof(uint32_t) * 2);
+
+	int attribCount = 0;
+
+	memset(p_buffer, 0, attrib_size);
+
+	for (int y = 0; y < m_image_height; y += 8)
+	{
+		for (int x = 0; x < m_image_width; x += 8)
+		{
+			int attrCount = 0;
+			uint32_t attr[2] = { 0 };
+
+			for (int j = 0; j < 8; j++)
+			{
+				for (int i = 0; i < 8; i++)
+				{
+					int index = x + i + (j + y) * m_image_width;
+					int colorIndex = m_next_image[index];
+
+					uint8_t r8 = m_palette[colorIndex * 4 + 1];
+					uint8_t g8 = m_palette[colorIndex * 4 + 2];
+					uint8_t b8 = m_palette[colorIndex * 4 + 3];
+					uint32_t rgb888 =  RGB888(r8, g8, b8);
+					uint32_t color = get_nearest_screen_color(rgb888);
+
+					if (attrCount == 0)
+						attr[attrCount++] = color;
+
+					bool attrFound = false;
+
+					for (int k = 0; k < attrCount; k++)
+					{
+						if (attr[k] == color)
+							attrFound = true;
+					}
+
+					if (!attrFound)
+					{
+						if (attrCount > 1)
+							exit_with_msg("More than 2 colors in an attribute block at (%d, %d)\n", x/8, y/8);
+						attr[attrCount++] = color;
+					}
+				}
+			}
+
+			if(attrCount != 2)
+			{
+				// If only one colour, try to find a match in an adjacent cell
+				if (attribCount)
+				{
+					uint32_t *prevAttr = &p_attrib[attribCount - 2];
+
+					if (prevAttr[0] == attr[0])
+						attr[attrCount++] = prevAttr[1];
+				}
+
+				if (attrCount != 2)
+					attr[attrCount++] = m_screenColors[0];
+			}
+
+			uint8_t paper = get_screen_color_attribs(attr[0], false);
+			uint8_t ink = get_screen_color_attribs(attr[1], true);
+
+			if (paper > ink)
+			{
+				// Swap attr 0&1
+				attr[0] ^= attr[1];
+				attr[1] ^= attr[0];
+				attr[0] ^= attr[1];
+			}
+
+			p_attrib[attribCount++] = attr[0];
+			p_attrib[attribCount++] = attr[1];
+		}
+	}
+
+	for (int i = 0; i < attribCount >> 1; i++)
+	{
+		uint8_t paper = get_screen_color_attribs(p_attrib[i * 2], false);
+		uint8_t ink = get_screen_color_attribs(p_attrib[i * 2 + 1], true);
+		p_buffer[i] = (paper | ink);
+	}
+
+	write_file(p_file, screen_filename, p_buffer, attrib_size, false, m_args.compress & COMPRESS_SCREEN);
+
+	free(p_attrib);
 	free(p_buffer);
 	fclose(p_file);
 }
@@ -3707,7 +3822,7 @@ int process_file()
 		}
 	}
 	
-	if (!m_args.screen)
+	if ((!m_args.screen) && (!m_args.pal_zx))
 	{
 		process_palette();
 	}
@@ -3770,7 +3885,14 @@ int process_file()
 		process_tiles();
 	}
 	
-	write_next_palette();
+	if (m_args.pal_zx)
+	{
+		write_attribs();
+	}
+	else
+	{
+		write_next_palette();
+	}
 	
 	if (m_args.tiled_file != NULL)
 	{
