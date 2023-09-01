@@ -79,6 +79,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-pal-rgb332|Output palette in RGB332 (8-bit) format|
 |-pal-bgr222|Output palette in BGR222 (8-bit) format. Bits 7-6 are unused|
 |-pal-zx|Output a ZX Spectrum attribute block for input image|
+|-pal-zx-default|Attribute value to use if only 1 color is detected in attribute|
 |-zx0|Compress all data using zx0|
 |-zx0-screen|Compress screen data using zx0|
 |-zx0-bitmap|Compress bitmap data using zx0|

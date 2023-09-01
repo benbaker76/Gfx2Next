@@ -245,6 +245,7 @@ typedef struct
 	bool pal_rgb332;
 	bool pal_bgr222;
 	bool pal_zx;
+	int pal_zx_default;
 	bool zx0_back;
 	bool zx0_quick;
 	compress_t compress;
@@ -304,6 +305,8 @@ static arguments_t m_args  =
 	.pal_std = false,
 	.pal_rgb332 = false,
 	.pal_bgr222 = false,
+	.pal_zx = false,
+	.pal_zx_default = -1,
 	.zx0_back = false,
 	.zx0_quick = false,
 	.compress = COMPRESS_NONE,
@@ -881,6 +884,7 @@ static void print_usage(void)
 	printf("  -pal-rgb332             Output palette in RGB332 (8-bit) format\n");
 	printf("  -pal-bgr222             Output palette in BGR222 (8-bit) format. Bits 7-6 are unused\n");
 	printf("  -pal-zx                 Output a ZX Spectrum attribute map matching the input image\n");
+	printf("  -pal-zx-default=<attr>  Attribute value to use if only 1 color is detected in attribute\n");
 	printf("  -zx0                    Compress all data using zx0\n");
 	printf("  -zx0-screen             Compress screen data using zx0\n");
 	printf("  -zx0-bitmap             Compress bitmap data using zx0\n");
@@ -1194,6 +1198,12 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-pal-zx"))
 			{
 				m_args.pal_zx = true;
+			}
+			else if (!strncmp(argv[i], "-pal-zx-default=", 16))
+			{
+				m_args.pal_zx_default = atoi(&argv[i][16]);
+
+				printf("Default attribute = %d\n", m_args.pal_zx_default);
 			}
 			else if (!strcmp(argv[i], "-zx0"))
 			{
@@ -2528,6 +2538,12 @@ static void write_attribs()
 
 			if(attrCount != 2)
 			{
+				if(m_args.pal_zx_default != -1)
+				{
+					p_attrib[attribCount++] = 0xffffffff;
+					p_attrib[attribCount++] = 0xffffffff;
+					continue;
+				}
 				// If only one colour, try to find a match in an adjacent cell
 				if (attribCount)
 				{
@@ -2559,9 +2575,16 @@ static void write_attribs()
 
 	for (int i = 0; i < attribCount >> 1; i++)
 	{
-		uint8_t paper = get_screen_color_attribs(p_attrib[i * 2], false);
-		uint8_t ink = get_screen_color_attribs(p_attrib[i * 2 + 1], true);
-		p_buffer[i] = (paper | ink);
+		if(p_attrib[i * 2] == 0xffffffff)
+		{
+			p_buffer[i] = m_args.pal_zx_default;
+		}
+		else
+		{
+			uint8_t paper = get_screen_color_attribs(p_attrib[i * 2], false);
+			uint8_t ink = get_screen_color_attribs(p_attrib[i * 2 + 1], true);
+			p_buffer[i] = (paper | ink);
+		}
 	}
 
 	write_file(p_file, screen_filename, p_buffer, attrib_size, false, m_args.compress & COMPRESS_SCREEN);
