@@ -2545,7 +2545,7 @@ static void write_attribs()
 					continue;
 				}
 				// If only one colour, try to find a match in an adjacent cell
-				if (attribCount)
+				if (attribCount >= 2)
 				{
 					uint32_t *prevAttr = &p_attrib[attribCount - 2];
 
