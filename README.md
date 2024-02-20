@@ -2,7 +2,7 @@
 
 ZX Spectrum Next graphics conversion tool.
 
-Converts an uncompressed 8-bit BMP or PNG file to the Sinclair ZX Spectrum Next graphics format(s).
+Converts an uncompressed 8-bit BMP,PNG or ASEPRITE file to the Sinclair ZX Spectrum Next graphics format(s).
 
 ## Supported Formats
 
