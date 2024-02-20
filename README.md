@@ -2,7 +2,7 @@
 
 ZX Spectrum Next graphics conversion tool.
 
-Converts an uncompressed 8-bit BMP or PNG file to the Sinclair ZX Spectrum Next graphics format(s).
+Converts an uncompressed 8-bit BMP,PNG or ASEPRITE file to the Sinclair ZX Spectrum Next graphics format(s).
 
 ## Supported Formats
 
@@ -125,6 +125,8 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c -lm
 * Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
 * Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
 * Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
-
+* Randy Gaul - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
+* [Miguel Vanhove](https://github.com/redbug26) - Added aseprite support
+  
 ## Download
 [Gfx2Next](https://github.com/benbaker76/Gfx2Next/releases/latest)
