@@ -1527,7 +1527,7 @@ static void read_aseprite()
 			(frame->pixels[j].g == 0) &
 			(frame->pixels[j].b == 0))
 		{
-			color = ase-> transparent_palette_entry_index
+			color = ase-> transparent_palette_entry_index;
 		} 
 		else 
 		for (int i = 0; i < ase->palette.entry_count; i++)
