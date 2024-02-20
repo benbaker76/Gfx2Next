@@ -11,6 +11,8 @@
  *    Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
  *    Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
  *    Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
+ *    Randy Gaul - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
+ *    Miguel Vanhove - Added aseprite support
  *
  * Supports the following ZX Spectrum Next formats:
  *
@@ -39,7 +41,10 @@ int _CRT_glob = 0;
 #include "zx0.h"
 #include "lodepng.h"
 
-#define VERSION						"1.1.10"
+#define CUTE_ASEPRITE_IMPLEMENTATION
+#include "cute_aseprite.h"
+
+#define VERSION						"1.1.11"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -1477,6 +1482,62 @@ static bool is_valid_bmp_file(uint32_t *palette_offset,
 	}
 
 	return true;
+}
+
+static void read_aseprite()
+{
+    ase_t *ase = cute_aseprite_load_from_file(m_args.in_filename, NULL);
+    if (NULL == ase)
+	{
+		exit_with_msg("Can't open file %s.\n", m_args.in_filename);
+	}
+
+	if (ase->mode != ASE_MODE_INDEXED) 
+	{
+		exit_with_msg("Can't read the Aseprite image format. Must be a paletted 8-bit image.\n");
+	}
+
+	m_image_width = ase->w;
+	m_image_height = ase->h;
+	m_padded_image_width = m_image_width;
+	m_image_size = m_padded_image_width * m_image_height;
+	
+	m_image = malloc(m_image_size);
+
+	if (m_image == NULL)
+	{
+		exit_with_msg("Can't allocate memory for image data.\n");
+	}
+	
+	ase_frame_t *frame = ase->frames;
+
+	for (int i = 0; i < ase->palette.entry_count; i++)
+	{
+		m_palette[i * 4 + 0] =ase->palette.entries[i].color.a;
+		m_palette[i * 4 + 1] = ase->palette.entries[i].color.r;
+		m_palette[i * 4 + 2] = ase->palette.entries[i].color.g;
+		m_palette[i * 4 + 3] = ase->palette.entries[i].color.b;
+	}
+
+	for (int j = 0; j < m_image_size; j++) {
+		uint8_t color=0;
+
+		for (int i = 0; i < ase->palette.entry_count; i++)
+		{
+			if ((frame->pixels[j].a == ase->palette.entries[i].color.a) &
+				(frame->pixels[j].r == ase->palette.entries[i].color.r) &
+				(frame->pixels[j].g == ase->palette.entries[i].color.g) &
+				(frame->pixels[j].b == ase->palette.entries[i].color.b))
+			{
+				color = i;
+				break;
+			}
+		}
+
+		m_image[j] = color;
+	}
+	
+    cute_aseprite_free(ase);
 }
 
 static void read_bitmap()
@@ -3786,6 +3847,10 @@ int process_file()
 		else if (strcasecmp(p_ext, ".bmp") == 0)
 		{
 			read_bitmap();
+		}
+		else if ( (strcasecmp(p_ext, ".ase") == 0) || (strcasecmp(p_ext, ".aseprite") == 0))
+		{
+			read_aseprite();
 		}
 	}
 	
