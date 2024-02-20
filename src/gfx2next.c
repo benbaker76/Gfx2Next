@@ -1522,8 +1522,17 @@ static void read_aseprite()
 	for (int j = 0; j < m_image_size; j++) {
 		uint8_t color=0;
 
+		if ((frame->pixels[j].a == 0) &
+			(frame->pixels[j].r == 0) &
+			(frame->pixels[j].g == 0) &
+			(frame->pixels[j].b == 0))
+		{
+			color = ase-> transparent_palette_entry_index
+		} 
+		else 
 		for (int i = 0; i < ase->palette.entry_count; i++)
 		{
+
 			if ((frame->pixels[j].a == ase->palette.entries[i].color.a) &
 				(frame->pixels[j].r == ase->palette.entries[i].color.r) &
 				(frame->pixels[j].g == ase->palette.entries[i].color.g) &
