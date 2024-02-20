@@ -12,7 +12,7 @@
  *    Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
  *    Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
  *    Randy Gaul - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
- *    Miguel Vanhove - Added aseprite support
+ *    [Miguel Vanhove](https://github.com/redbug26) - Added aseprite support
  *
  * Supports the following ZX Spectrum Next formats:
  *
