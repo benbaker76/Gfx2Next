@@ -117,15 +117,15 @@ gcc -O2 -Wall -o bin/gfx2next src/lodepng.c src/zx0.c src/gfx2next.c -lm
 
 ## Credits
 
-* Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
+* [Ben Baker](https://github.com/benbaker76) - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
 * [Craig Hackney](https://github.com/iratahack) - Added -pal-rgb332 & -pal-bgr222, -colors-1bit, and -map-sms options and some fixes
-* Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
+* [Einar Saukas](https://github.com/einar-saukas) - [ZX0](https://github.com/einar-saukas/ZX0)
 * Jim Bagley - NextGrab / MapGrabber
 * Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
 * Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
-* Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
-* Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
-* Randy Gaul - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
+* [Michael Ware](https://github.com/GreatFlash) - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
+* [Stefan Bylund](https://github.com/stefanbylund) - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
+* [Randy Gaul](https://github.com/RandyGaul) - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
 * [Miguel Vanhove](https://github.com/redbug26) - Added aseprite support
   
 ## Download
