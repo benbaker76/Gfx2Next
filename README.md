@@ -31,6 +31,7 @@ gfx2next [options] &lt;srcfile&gt; [&lt;dstfile&gt;]
 |-bitmap-y|Get bitmap in Y order first. (Default is X order first)|
 |-bitmap-size=XxY|Splits up the bitmap output file into X x Y sections|
 |-sprites|Sets output to Next sprite mode (.spr)|
+|-frame=n|Set frame n for Aseprite|
 |-tiles-file=&lt;filename&gt;|Load tiles from file in .nxt format|
 |-tile-size=XxY|Sets tile size to X x Y|
 |-tile-norepeat|Remove repeating tiles|

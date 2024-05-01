@@ -3,15 +3,15 @@
  * 
  * Credits:
  *
- *    Ben Baker - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
- *    Craig Hackney - Added -pal-rgb332 & -pal-bgr222, -colors-1bit, and -map-sms options and some fixes
- *    Einar Saukas - [ZX0](https://github.com/einar-saukas/ZX0)
+ *    [Ben Baker](https://github.com/benbaker76) - [Gfx2Next](https://www.rustypixels.uk/?page_id=976) Author & Maintainer
+ *    [Craig Hackney](https://github.com/iratahack) - Added -pal-rgb332 & -pal-bgr222, -colors-1bit, and -map-sms options and some fixes
+ *    [Einar Saukas](https://github.com/einar-saukas) - [ZX0](https://github.com/einar-saukas/ZX0)
  *    Jim Bagley - NextGrab / MapGrabber
  *    Juan J. Martinez - [png2scr](https://github.com/reidrac/png2scr)
  *    Lode Vandevenne - [LodePNG](https://lodev.org/lodepng/)
- *    Michael Ware - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
- *    Stefan Bylund - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
- *    Randy Gaul - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
+ *    [Michael Ware](https://github.com/GreatFlash) - [Tiled2Bin](https://www.rustypixels.uk/?page_id=739)
+ *    [Stefan Bylund](https://github.com/stefanbylund) - [NextBmp / NextRaw](https://github.com/stefanbylund/zxnext_bmp_tools)
+ *    [Randy Gaul](https://github.com/RandyGaul) - [cute_aseprite](https://github.com/RandyGaul/cute_headers/)
  *    [Miguel Vanhove](https://github.com/redbug26) - Added aseprite support
  *
  * Supports the following ZX Spectrum Next formats:
@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.12"
+#define VERSION						"1.1.13"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -214,6 +214,7 @@ typedef struct
 	bool bitmap;
 	bool bitmap_y;
 	bool sprites;
+	int frame;
 	char *tiles_file;
 	bool tile_norepeat;
 	bool tile_nomirror;
@@ -275,6 +276,7 @@ static arguments_t m_args  =
 	.bitmap = false,
 	.bitmap_y = false,
 	.sprites = false,
+	.frame = 0,
 	.tiles_file = NULL,
 	.tile_norepeat = false,
 	.tile_nomirror = false,
@@ -838,6 +840,7 @@ static void print_usage(void)
 	printf("  -bitmap-y               Get bitmap in Y order first. (Default is X order first)\n");
 	printf("  -bitmap-size=XxY        Splits up the bitmap output file into X x Y sections\n");
 	printf("  -sprites                Sets output to Next sprite mode (.spr)\n");
+	printf("  -frame=n                Set frame n for Aseprite\n");
 	printf("  -tiles-file=<filename>  Load tiles from file in .nxt format\n");
 	printf("  -tile-size=XxY          Sets tile size to X x Y\n");
 	printf("  -tile-norepeat          Remove repeating tiles\n");
@@ -970,6 +973,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 				m_args.tile_norepeat = false;
 				m_args.tile_norotate = false;
 				m_args.sprites = true;
+			}
+			else if (!strncmp(argv[i], "-frame=", 7))
+			{
+				m_args.frame = atoi(&argv[i][7]);
 			}
 			else if (!strncmp(argv[i], "-tiles-file=", 12))
 			{
@@ -1486,9 +1493,9 @@ static bool is_valid_bmp_file(uint32_t *palette_offset,
 
 static void read_aseprite()
 {
-    ase_t *ase = cute_aseprite_load_from_file(m_args.in_filename, NULL);
-	
-    if (NULL == ase)
+	ase_t *ase = cute_aseprite_load_from_file(m_args.in_filename, NULL);
+
+	if (NULL == ase)
 	{
 		exit_with_msg("Can't open file %s.\n", m_args.in_filename);
 	}
@@ -1502,15 +1509,15 @@ static void read_aseprite()
 	m_image_height = ase->h;
 	m_padded_image_width = m_image_width;
 	m_image_size = m_padded_image_width * m_image_height;
-	
+
 	m_image = malloc(m_image_size);
 
 	if (m_image == NULL)
 	{
 		exit_with_msg("Can't allocate memory for image data.\n");
 	}
-	
-	ase_frame_t *frame = ase->frames;
+
+	ase_frame_t *frame = ase->frames[MIN(m_args.frame, ase->frame_count-1)];
 
 	for (int i = 0; i < ase->palette.entry_count; i++)
 	{
@@ -1549,8 +1556,8 @@ static void read_aseprite()
 
 		m_image[j] = color;
 	}
-	
-    cute_aseprite_free(ase);
+
+	cute_aseprite_free(ase);
 }
 
 static void read_bitmap()
@@ -3861,7 +3868,7 @@ int process_file()
 		{
 			read_bitmap();
 		}
-		else if ( (strcasecmp(p_ext, ".ase") == 0) || (strcasecmp(p_ext, ".aseprite") == 0))
+		else if ((strcasecmp(p_ext, ".ase") == 0) || (strcasecmp(p_ext, ".aseprite") == 0))
 		{
 			read_aseprite();
 		}
