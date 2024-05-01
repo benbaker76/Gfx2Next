@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.11"
+#define VERSION						"1.1.12"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -1487,6 +1487,7 @@ static bool is_valid_bmp_file(uint32_t *palette_offset,
 static void read_aseprite()
 {
     ase_t *ase = cute_aseprite_load_from_file(m_args.in_filename, NULL);
+	
     if (NULL == ase)
 	{
 		exit_with_msg("Can't open file %s.\n", m_args.in_filename);
@@ -1519,27 +1520,30 @@ static void read_aseprite()
 		m_palette[i * 4 + 3] = ase->palette.entries[i].color.b;
 	}
 
-	for (int j = 0; j < m_image_size; j++) {
-		uint8_t color=0;
+	for (int j = 0; j < m_image_size; j++)
+	{
+		uint8_t color = 0;
 
-		if ((frame->pixels[j].a == 0) &
-			(frame->pixels[j].r == 0) &
-			(frame->pixels[j].g == 0) &
+		if ((frame->pixels[j].a == 0) &&
+			(frame->pixels[j].r == 0) &&
+			(frame->pixels[j].g == 0) &&
 			(frame->pixels[j].b == 0))
 		{
 			color = ase-> transparent_palette_entry_index;
 		} 
-		else 
-		for (int i = 0; i < ase->palette.entry_count; i++)
+		else
 		{
-
-			if ((frame->pixels[j].a == ase->palette.entries[i].color.a) &
-				(frame->pixels[j].r == ase->palette.entries[i].color.r) &
-				(frame->pixels[j].g == ase->palette.entries[i].color.g) &
-				(frame->pixels[j].b == ase->palette.entries[i].color.b))
+			for (int i = 0; i < ase->palette.entry_count; i++)
 			{
-				color = i;
-				break;
+
+				if ((frame->pixels[j].a == ase->palette.entries[i].color.a) &&
+					(frame->pixels[j].r == ase->palette.entries[i].color.r) &&
+					(frame->pixels[j].g == ase->palette.entries[i].color.g) &&
+					(frame->pixels[j].b == ase->palette.entries[i].color.b))
+				{
+					color = i;
+					break;
+				}
 			}
 		}
 
