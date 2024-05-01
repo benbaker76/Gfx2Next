@@ -1517,7 +1517,7 @@ static void read_aseprite()
 		exit_with_msg("Can't allocate memory for image data.\n");
 	}
 
-	ase_frame_t *frame = ase->frames[MIN(m_args.frame, ase->frame_count-1)];
+	ase_frame_t *frame = &ase->frames[MIN(m_args.frame, ase->frame_count-1)];
 
 	for (int i = 0; i < ase->palette.entry_count; i++)
 	{
