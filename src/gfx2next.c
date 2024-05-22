@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.13"
+#define VERSION						"1.1.14"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -961,6 +961,8 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			{
 				m_bitmap_width = atoi(strtok(&argv[i][13], "x"));
 				m_bitmap_height = atoi(strtok(NULL, "x"));
+				m_args.bank_size = BANKSIZE_CUSTOM; 
+				m_bank_size = m_bitmap_width * m_bitmap_height;
 				
 				printf("Bitmap Size = %d x %d\n", m_bitmap_width, m_bitmap_height);
 			}
@@ -2298,12 +2300,12 @@ static uint8_t *get_bitmap_width_height(uint8_t *p_data, int bank_index, int bit
 		
 		bank_count++;
 	}
-	
+
 	if (bank_count > 0)
 	{
 		*bank_size = bank_count;
 	}
-
+	
 	return bank;
 }
 
@@ -2686,7 +2688,7 @@ static void write_next_bitmap()
 		while (size > 0)
 		{
 			int bank_size = (size < m_bank_size ? size : m_bank_size);
-			
+
 			create_series_filename(m_bitmap_filename, m_args.out_filename, EXT_NXI, m_args.compress & COMPRESS_BITMAP, m_bank_count);
 
 			if (m_args.asm_mode > ASMMODE_NONE)
@@ -2704,7 +2706,7 @@ static void write_next_bitmap()
 			}
 			
 			uint8_t *p_image = NULL;
-			
+
 			if (m_bitmap_width != 0 && m_bitmap_height != 0)
 				p_image = get_bitmap_width_height(m_next_image, m_bank_count, m_bitmap_width, m_bitmap_height, &bank_size);
 			else
