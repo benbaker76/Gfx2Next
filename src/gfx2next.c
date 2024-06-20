@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.14"
+#define VERSION						"1.1.15"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
