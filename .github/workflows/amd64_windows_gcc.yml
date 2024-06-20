@@ -21,10 +21,13 @@ jobs:
       run: |
         output=$(build/gfx2next -version)
         echo "::set-output name=result::$output"
+    - name: Copy DLL file
+      run: |
+        cp /usr/bin/msys-2.0.dll build/
     - name: Compress Files
       uses: vimtor/action-zip@v1
       with:
-        files: README.md build/gfx2next.exe
+        files: README.md build/gfx2next.exe build/msys-2.0.dll
         dest: build/gfx2next_Windows_amd64.zip
     - name: Upload to Artifacts
       uses: actions/upload-artifact@v3
