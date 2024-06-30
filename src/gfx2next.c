@@ -44,14 +44,13 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.15"
+#define VERSION						"1.1.16"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
 #define BMP_FILE_HEADER_SIZE		14
 #define BMP_MIN_DIB_HEADER_SIZE		40
 #define BMP_HEADER_SIZE				54
-#define BMP_MIN_FILE_SIZE			1082
 
 #define PALETTE_SIZE				1024
 
@@ -1418,79 +1417,77 @@ static void alphanumeric_to_underscore(char *filename)
 }
 
 static bool is_valid_bmp_file(uint32_t *palette_offset,
-								uint32_t *image_offset,
-								uint16_t *bpp)
+                              uint32_t *image_offset,
+                              uint16_t *bpp,
+                              uint32_t *color_count)
 {
-	if ((m_bmp_header[0] != 'B') || (m_bmp_header[1] != 'M'))
-	{
-		fprintf(stderr, "Not a BMP file.\n");
-		return false;
-	}
+    if ((m_bmp_header[0] != 'B') || (m_bmp_header[1] != 'M'))
+    {
+        fprintf(stderr, "Not a BMP file.\n");
+        return false;
+    }
 
-	uint32_t file_size = *((uint32_t *) (m_bmp_header + 2));
-	if (file_size < BMP_MIN_FILE_SIZE)
-	{
-		fprintf(stderr, "Invalid size of BMP file.\n");
-		return false;
-	}
+    uint32_t file_size = *((uint32_t *) (m_bmp_header + 2));
 
-	*image_offset = *((uint32_t *) (m_bmp_header + 10));
-	if (*image_offset >= file_size)
-	{
-		fprintf(stderr, "Invalid header of BMP file.\n");
-		return false;
-	}
+    *image_offset = *((uint32_t *) (m_bmp_header + 10));
+    if (*image_offset >= file_size)
+    {
+        fprintf(stderr, "Invalid header of BMP file.\n");
+        return false;
+    }
 
-	uint32_t dib_header_size = *((uint32_t *) (m_bmp_header + 14));
-	if (dib_header_size < BMP_MIN_DIB_HEADER_SIZE)
-	{
-		// At least a BITMAPINFOHEADER is required.
-		fprintf(stderr, "Invalid/unsupported header of BMP file.\n");
-		return false;
-	}
+    uint32_t dib_header_size = *((uint32_t *) (m_bmp_header + 14));
+    if (dib_header_size < BMP_MIN_DIB_HEADER_SIZE)
+    {
+        // At least a BITMAPINFOHEADER is required.
+        fprintf(stderr, "Invalid/unsupported header of BMP file.\n");
+        return false;
+    }
 
-	*palette_offset = BMP_FILE_HEADER_SIZE + dib_header_size;
+    *palette_offset = BMP_FILE_HEADER_SIZE + dib_header_size;
 
-	m_image_width = *((uint32_t *) (m_bmp_header + 18));
-	if (m_image_width == 0)
-	{
-		fprintf(stderr, "Invalid image width in BMP file.\n");
-		return false;
-	}
+    m_image_width = *((uint32_t *) (m_bmp_header + 18));
+    if (m_image_width == 0)
+    {
+        fprintf(stderr, "Invalid image width in BMP file.\n");
+        return false;
+    }
 
-	m_image_height = *((int32_t *) (m_bmp_header + 22));
-	if (m_image_height == 0)
-	{
-		fprintf(stderr, "Invalid image height in BMP file.\n");
-		return false;
-	}
-	
-	*bpp = *((uint16_t *) (m_bmp_header + 28));
-	if (*bpp != 4 && *bpp != 8)
-	{
-		fprintf(stderr, "Not a 4-bit or 8-bit BMP file.\n");
-		return false;
-	}
-	
-	uint32_t image_size = m_image_width * abs(m_image_height);
-	
-	if (*bpp == 4)
-		image_size >>= 1;
+    m_image_height = *((int32_t *) (m_bmp_header + 22));
+    if (m_image_height == 0)
+    {
+        fprintf(stderr, "Invalid image height in BMP file.\n");
+        return false;
+    }
+    
+    *bpp = *((uint16_t *) (m_bmp_header + 28));
+    if (*bpp != 4 && *bpp != 8)
+    {
+        fprintf(stderr, "Not a 4-bit or 8-bit BMP file.\n");
+        return false;
+    }
+    
+    uint32_t image_size = m_image_width * abs(m_image_height);
+    
+    if (*bpp == 4)
+        image_size >>= 1;
 
-	if (image_size >= file_size)
-	{
-		fprintf(stderr, "Invalid image size in BMP file.\n");
-		return false;
-	}
+    if (image_size >= file_size)
+    {
+        fprintf(stderr, "Invalid image size in BMP file.\n");
+        return false;
+    }
 
-	uint32_t compression = *((uint32_t *) (m_bmp_header + 30));
-	if (compression != 0)
-	{
-		fprintf(stderr, "Not an uncompressed BMP file.\n");
-		return false;
-	}
+    uint32_t compression = *((uint32_t *) (m_bmp_header + 30));
+    if (compression != 0)
+    {
+        fprintf(stderr, "Not an uncompressed BMP file.\n");
+        return false;
+    }
 
-	return true;
+    *color_count = *((uint32_t *) (m_bmp_header + 46));
+    
+    return true;
 }
 
 static void read_aseprite()
@@ -1568,6 +1565,7 @@ static void read_bitmap()
 	uint32_t image_offset;
 	uint16_t bpp;
 	uint32_t image_size;
+	uint32_t color_count;
 	
 	// Open the BMP file and validate its header.
 	FILE *in_file = fopen(m_args.in_filename, "rb");
@@ -1579,7 +1577,7 @@ static void read_bitmap()
 	{
 		exit_with_msg("Can't read the BMP header in file %s.\n", m_args.in_filename);
 	}
-	if (!is_valid_bmp_file(&palette_offset, &image_offset, &bpp))
+	if (!is_valid_bmp_file(&palette_offset, &image_offset, &bpp, &color_count))
 	{
 		exit_with_msg("The file %s is not a valid or supported BMP file.\n", m_args.in_filename);
 	}
@@ -1604,7 +1602,8 @@ static void read_bitmap()
 	{
 		exit_with_msg("Can't access the BMP palette in file %s.\n", m_args.in_filename);
 	}
-	if (fread(m_palette, sizeof(uint8_t), sizeof(m_palette), in_file) != sizeof(m_palette))
+	color_count = (color_count == 0 ? (bpp == 4 ? 16 : 256) : color_count);
+	if (fread(m_palette, 2, color_count, in_file) != color_count)
 	{
 		exit_with_msg("Can't read the BMP palette in file %s.\n", m_args.in_filename);
 	}
