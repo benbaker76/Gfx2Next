@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.16"
+#define VERSION						"1.1.17"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -1603,7 +1603,7 @@ static void read_bitmap()
 		exit_with_msg("Can't access the BMP palette in file %s.\n", m_args.in_filename);
 	}
 	color_count = (color_count == 0 ? (bpp == 4 ? 16 : 256) : color_count);
-	if (fread(m_palette, 2, color_count, in_file) != color_count)
+	if (fread(m_palette, 4, color_count, in_file) != color_count)
 	{
 		exit_with_msg("Can't read the BMP palette in file %s.\n", m_args.in_filename);
 	}
