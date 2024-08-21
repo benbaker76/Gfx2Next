@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.17"
+#define VERSION						"1.1.18"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -98,6 +98,7 @@ int _CRT_glob = 0;
 #define RGB888(r8,g8,b8)			((r8 << 16) | (g8 << 8) | b8)
 #define RGB332(r3,g3,b2)			((r3 << 5) | (g3 << 2) | b2)
 #define RGB333(r3,g3,b3)			((r3 << 6) | (g3 << 3) | b3)
+#define RGB444(r4,g4,b4)			((r4 << 8) | (g4 << 4) | b4)
 #define BGR222(b2,g2,r2)			((b2 << 4) | (g2 << 2) | r2)
 
 #define MIN(x,y)					((x) < (y) ? (x) : (y))
@@ -249,6 +250,7 @@ typedef struct
 	bool pal_std;
 	bool pal_rgb332;
 	bool pal_bgr222;
+	bool pal_gbr444;
 	bool pal_zx;
 	int pal_zx_default;
 	bool zx0_back;
@@ -311,6 +313,7 @@ static arguments_t m_args  =
 	.pal_std = false,
 	.pal_rgb332 = false,
 	.pal_bgr222 = false,
+	.pal_gbr444 = false,
 	.pal_zx = false,
 	.pal_zx_default = -1,
 	.zx0_back = false,
@@ -430,6 +433,24 @@ static void exit_with_msg(const char *format, ...)
 	exit(EXIT_FAILURE);
 }
 
+static uint8_t c8_to_c4(uint8_t c8, color_mode_t color_mode)
+{
+	double c4 = (c8 * 15.0) / 255.0;
+
+	switch (color_mode)
+	{
+	case COLORMODE_FLOOR:
+		return (uint8_t) floor(c4);
+	case COLORMODE_CEIL:
+		return (uint8_t) ceil(c4);
+	case COLORMODE_ROUND:
+	case COLORMODE_DISTANCE:
+	// Fall through
+	default:
+		return (uint8_t) round(c4);
+	}
+}
+
 static uint8_t c8_to_c3(uint8_t c8, color_mode_t color_mode)
 {
 	double c3 = (c8 * 7.0) / 255.0;
@@ -530,6 +551,17 @@ static uint16_t rgb888_to_rgb333(uint32_t rgb888, color_mode_t color_mode)
 	uint8_t g3 = c8_to_c3(g8, color_mode);
 	uint8_t b3 = c8_to_c3(b8, color_mode);
 	return RGB333(r3, g3, b3);
+}
+
+static uint16_t rgb888_to_rgb444(uint32_t rgb888, color_mode_t color_mode)
+{
+	uint8_t r8 = rgb888 >> 16;
+	uint8_t g8 = rgb888 >> 8;
+	uint8_t b8 = rgb888;
+	uint8_t r4 = c8_to_c4(r8, color_mode);
+	uint8_t g4 = c8_to_c4(g8, color_mode);
+	uint8_t b4 = c8_to_c4(b8, color_mode);
+	return RGB444(r4, g4, b4);
 }
 
 static uint8_t get_screen_color_attribs(uint32_t rgb888, bool useInk)
@@ -729,6 +761,10 @@ static void create_next_palette(color_mode_t color_mode)
 			{
 				((uint8_t *) m_next_palette)[i] = rgb332;
 			}
+			else if (m_args.pal_gbr444)
+			{
+				m_next_palette[i] = rgb888_to_rgb444(RGB888(r8, g8, b8), color_mode);
+			}
 			else
 			{
 				m_next_palette[i] = (b1 << 8) | rgb332;
@@ -888,6 +924,7 @@ static void print_usage(void)
 	printf("  -pal-std                If specified, convert to the Spectrum Next standard palette colors\n");
 	printf("                          This option is ignored if the -colors-4bit option is given\n");
 	printf("  -pal-none               No raw palette is created\n");
+	printf("  -pal-gbr4444            Output palette in GBR444 format (GGGGBBBB xxxxRRRR)\n");
 	printf("  -pal-rgb332             Output palette in RGB332 (8-bit) format\n");
 	printf("  -pal-bgr222             Output palette in BGR222 (8-bit) format. Bits 7-6 are unused\n");
 	printf("  -pal-zx                 Output a ZX Spectrum attribute map matching the input image\n");
@@ -1207,6 +1244,10 @@ static bool parse_args(int argc, char *argv[], arguments_t *args)
 			else if (!strcmp(argv[i], "-pal-bgr222"))
 			{
 				m_args.pal_bgr222 = true;
+			}
+			else if (!strcmp(argv[i], "-pal-gbr444"))
+			{
+				m_args.pal_gbr444 = true;
 			}
 			else if (!strcmp(argv[i], "-pal-zx"))
 			{
