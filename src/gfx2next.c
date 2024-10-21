@@ -44,7 +44,7 @@ int _CRT_glob = 0;
 #define CUTE_ASEPRITE_IMPLEMENTATION
 #include "cute_aseprite.h"
 
-#define VERSION						"1.1.18"
+#define VERSION						"1.1.19"
 
 #define DIR_SEPERATOR_CHAR			'\\'
 
@@ -2483,6 +2483,7 @@ static void write_screen()
 		{
 			int attrCount = 0;
 			uint32_t attr[2] = { 0 };
+			uint32_t bitCount[2] = { 0 };
 			uint8_t byte[8];
 			
 			for (int j = 0; j < 8; j++)
@@ -2503,7 +2504,16 @@ static void write_screen()
 						attr[attrCount++] = color;
 					
 					if (color != attr[0])
+                    {
 						row |= 1 << (7 - i);
+                        // Increment bit count for ink
+                        bitCount[1]++;
+                    }
+                    else
+                    {
+                        // Increment bit count for paper
+                        bitCount[0]++;
+                    }
 					
 					bool attrFound = false;
 					
@@ -2544,7 +2554,9 @@ static void write_screen()
 			uint8_t paper = get_screen_color_attribs(attr[0], false);
 			uint8_t ink = get_screen_color_attribs(attr[1], true);
 			
-			if (paper > ink)
+            // If there are more ink bits than paper bits
+            // switch them.
+			if (bitCount[1] > bitCount[0])
 			{
 				uint32_t attrTemp = attr[0];
 				attr[0] = attr[1];
